@@ -1,0 +1,36 @@
+{
+  "name": "deplight",
+  "version": "1.0.0",
+  "description": "Make Deployment Delightful",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "nodemon backend/server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sangmu1126/Deplight.git"
+  },
+  "keywords": [
+    "deployment",
+    "cloud",
+    "gcp",
+    "flutter",
+    "express",
+    "socket.io"
+  ],
+  "author": "이상무",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/sangmu1126/Deplight/issues"
+  },
+  "homepage": "https://github.com/sangmu1126/Deplight#readme",
+  "dependencies": {
+    "express": "^5.1.0",
+    "socket.io": "^4.8.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
