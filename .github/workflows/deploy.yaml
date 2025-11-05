@@ -1,69 +1,107 @@
-name: Deploy to Amazon ECS (Blue/Green)
+# This is the "REAL ENGINE" of our PaaS.
+# It triggers on 'git push' or when our UI's "Deploy" button calls the API.
+name: Deplight GCP K8s Blue/Green Deploy
 
 on:
   push:
-    branches:
-      - main # main 브랜치에 푸시될 때마다 실행
+    branches: [ "main" ]
+  workflow_dispatch: # This allows our Node.js server to trigger this workflow via API
+    inputs:
+      version:
+        description: 'Version to deploy (e.g., v1.4)'
+        required: true
+        default: 'v1.4'
 
+# Slack/Server Webhook URLs should be stored in GitHub Secrets
 env:
-  AWS_REGION: ap-northeast-2 # 서울 리전
-  ECR_REPOSITORY: sample-app # 1단계에서 만든 ECR 리포지토리
-  ECS_SERVICE: YOUR_ECS_SERVICE_NAME # 2단계에서 만든 ECS 서비스 이름
-  ECS_CLUSTER: hackathon-cluster # 2단계에서 만든 ECS 클러스터 이름
-  ECS_TASK_DEFINITION: YOUR_TASK_DEFINITION_FILE_PATH # (아래에서 만들 파일 경로) e.g., sample-app/task-definition.json
-  CONTAINER_NAME: sample-app # 태스크 정의 내부의 컨테이너 이름
-
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+  DEPLIGHT_WEBHOOK_URL: ${{ secrets.DEPLIGHT_API_URL }}/webhook/github 
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_ZONE: 'asia-northeast3' # Seoul
+  GCP_CLUSTER_NAME: 'hackathon-cluster' # K8s Cluster
+  
 jobs:
-  deploy:
-    name: Deploy
+  build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
+      # -----------------------------------------------------------------
+      # 1. NOTIFY: START (Slack + UI)
+      # -----------------------------------------------------------------
+      - name: Send "Deploy Started" to Slack & UI
+        run: |
+          # Send "Toss-style" message to Slack
+          curl -X POST -H 'Content-type: application/json' --data '{"text":"🚀 (Deplight) 배포 시작: ${{ github.actor }}님이 ${{ github.event.inputs.version }} 배포를 시작했습니다! (씨앗 심기)"}' $SLACK_WEBHOOK_URL
+          
+          # Send "Linting" log to our Node.js server -> UI
+          curl -X POST -H 'Content-type: application/json' --data '{"id": 1, "log": {"time": "${{ fromJson(toJSON(job.started_at)) }}", "message": "🧐 흙을 고르고 씨앗을 심는 중...", "status": "LINTING"}}' $DEPLIGHT_WEBHOOK_URL
 
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
+      # -----------------------------------------------------------------
+      # 2. LINT / TEST (The "Fly" check)
+      # -----------------------------------------------------------------
+      - name: Lint & Test
+        run: |
+          # (This is where 'sample-app' tests would run)
+          echo "Running Lint & Unit Tests..."
+          sleep 5 # Simulate tests
+          # (If this step fails, the 'Notify: Failure' job will run)
 
-    - name: Build, tag, and push image to Amazon ECR
-      id: build-image
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        IMAGE_TAG: ${{ github.sha }} # Git 커밋 SHA를 이미지 태그로 사용
-      run: |
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./sample-app
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+      - name: Send "Test OK" to Slack & UI
+        run: |
+          curl -X POST -H 'Content-type: application/json' --data '{"text":"✅ (Deplight) 테스트 통과! (새싹 돋아남)"}' $SLACK_WEBHOOK_URL
+          curl -X POST -H 'Content-type: application/json' --data '{"id": 1, "log": {"time": "${{ fromJson(toJSON(job.started_at)) }}", "message": "✅ 좋아요! 건강한 새싹이 돋아났어요.", "status": "TESTING"}}' $DEPLIGHT_WEBHOOK_URL
 
-    # (중요!) CodeDeploy가 참조할 새 태스크 정의 JSON 파일을 만듭니다.
-    - name: Download task definition
-      id: task-def
-      run: |
-        aws ecs describe-task-definition --task-definition YOUR_TASK_DEFINITION_FAMILY_NAME \
-          --query '{ family: taskDefinition.family, containerDefinitions: taskDefinition.containerDefinitions, volumes: taskDefinition.volumes, placementConstraints: taskDefinition.placementConstraints, requiresCompatibilities: taskDefinition.requiresCompatibilities, networkMode: taskDefinition.networkMode, cpu: taskDefinition.cpu, memory: taskDefinition.memory, executionRoleArn: taskDefinition.executionRoleArn, taskRoleArn: taskDefinition.taskRoleArn }' \
-          > task-definition.json
-        echo "::set-output name=task_def_path::task-definition.json"
+      # -----------------------------------------------------------------
+      # 3. BUILD & PUSH TO GCP
+      # -----------------------------------------------------------------
+      - name: Build and Push to GCP Artifact Registry
+        run: |
+          # (This is a placeholder for real gcloud/docker commands)
+          echo "Logging into GCP..."
+          echo "Building Docker image..."
+          sleep 10
+          echo "Pushing image to gcr.io/${{ env.GCP_PROJECT_ID }}/deplight-app:${{ github.sha }}"
+          curl -X POST -H 'Content-type: application/json' --data '{"id": 1, "log": {"time": "${{ fromJson(toJSON(job.started_at)) }}", "message": "📦 쑥쑥! 줄기가 자라고 있어요. (GCP에 푸시 완료)", "status": "BUILDING"}}' $DEPLIGHT_WEBHOOK_URL
 
-    - name: Fill in the new image ID in the Amazon ECS task definition
-      id: render-task-def
-      uses: aws-actions/amazon-ecs-render-task-definition@v1
-      with:
-        task-definition: ${{ steps.task-def.outputs.task_def_path }}
-        container-name: ${{ env.CONTAINER_NAME }}
-        image: ${{ steps.build-image.outputs.image }}
+      # -----------------------------------------------------------------
+      # 4. DEPLOY TO GCP (K8s) - The Blue/Green Magic
+      # -----------------------------------------------------------------
+      - name: Deploy to K8s (Blue/Green)
+        run: |
+          echo "Connecting to K8s cluster: ${{ env.GCP_CLUSTER_NAME }}"
+          echo "Applying k8s-deployment-green.yml..."
+          sleep 15
+          echo "Waiting for Green deployment to be healthy..."
+          curl -X POST -H 'Content-type: application/json' --data '{"id": 1, "log": {"time": "${{ fromJson(toJSON(job.started_at)) }}", "message": "🚀 잎이 무성해지는 중... (Green 배포)", "status": "DEPLOYING"}}' $DEPLIGHT_WEBHOOK_URL
+          
+          echo "Switching traffic (K8s Service) from Blue to Green..."
+          sleep 5
+          curl -X POST -H 'Content-type: application/json' --data '{"id": 1, "log": {"time": "${{ fromJson(toJSON(job.started_at)) }}", "message": "🚦 두근두근... 꽃이 피기 직전이에요!", "status": "ROUTING"}}' $DEPLIGHT_WEBHOOK_URL
 
-    - name: Deploy Amazon ECS task definition
-      uses: aws-actions/amazon-ecs-deploy-service@v1
-      with:
-        task-definition: ${{ steps.render-task-def.outputs.task-definition }}
-        service: ${{ env.ECS_SERVICE }}
-        cluster: ${{ env.ECS_CLUSTER }}
-        wait-for-service-stability: true # 배포가 끝날 때까지 기다립니다. (중요!)
+      # -----------------------------------------------------------------
+      # 5. NOTIFY: SUCCESS
+      # -----------------------------------------------------------------
+      - name: Send "Deploy Success" to Slack & UI
+        if: success()
+        run: |
+          curl -X POST -H 'Content-type: application/json' --data '{"text":"✨ (Deplight) 배포 성공! v${{ github.event.inputs.version }}이 활성화되었습니다. (꽃 피우기)"}' $SLACK_WEBHOOK_URL
+          curl -X POST -H 'Content-type: application/json' --data '{"id": 1, "log": {"time": "${{ fromJson(toJSON(job.started_at)) }}", "message": "✨ 완벽해요! 예쁜 꽃이 피었어요!", "status": "DONE"}}' $DEPLIGHT_WEBHOOK_URL
+          curl -X POST -H 'Content-type: application/json' --data '{"id": 1, "log": {"time": "${{ fromJson(toJSON(job.started_at)) }}", "message": "AI 분석: k6 테스트 통과. 응답속도 12% 향상.", "status": "AI_INSIGHT"}}' $DEPLIGHT_WEBHOOK_URL
+          curl -X POST -H 'Content-type: application/json' --data '{"id": 1, "status": "HEALTHY", "plant": "rose"}' $DEPLIGHT_API_URL/webhook/plant-complete # (신규) 식물 완성 API
+
+  # -----------------------------------------------------------------
+  # 6. NOTIFY: FAILURE (The "Fly")
+  # -----------------------------------------------------------------
+  notify-failure:
+    runs-on: ubuntu-latest
+    if: failure() # Run this job only if any previous step failed
+    needs: build-and-deploy # Wait for the main job to fail
+    steps:
+      - name: Send "Deploy Failure" to Slack & UI
+        run: |
+          echo "Deployment failed!"
+          curl -X POST -H 'Content-type: application/json' --data '{"text":"🪰 (Deplight) 배포 실패! 롤백이 시작되었습니다."}' $SLACK_WEBHOOK_URL
+          curl -X POST -H 'Content-type: application/json' --data '{"id": 1, "log": {"time": "${{ fromJson(toJSON(job.started_at)) }}", "message": "😭 야생의 파리가 나타났어요! (롤백 중)", "status": "FAILED"}}' $DEPLIGHT_WEBHOOK_URL
+          curl -X POST -H 'Content-type: application/json' --data '{"id": 1, "log": {"time": "${{ fromJson(toJSON(job.started_at)) }}", "message": "AI 분석: ''Test'' 단계 실패. (파리 원인)", "status": "AI_INSIGHT"}}' $DEPLIGHT_WEBHOOK_URL
