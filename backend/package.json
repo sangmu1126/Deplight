@@ -28,6 +28,7 @@
   "homepage": "https://github.com/sangmu1126/Deplight#readme",
   "dependencies": {
     "express": "^5.1.0",
+    "firebase-admin": "^13.6.0",
     "socket.io": "^4.8.1"
   },
   "engines": {
