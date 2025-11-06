@@ -288,6 +288,7 @@ class _AppCoreState extends State<AppCore> {
   void _startNewDeployment(BuildContext context, String workspaceId) {
     if (socket == null) return;
 
+    final gitUrlController = TextEditingController();
     final nameController = TextEditingController();
     final descController = TextEditingController();
     final l10n = AppLocalizations.of(context)!;
@@ -299,6 +300,15 @@ class _AppCoreState extends State<AppCore> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            TextField(
+              controller: gitUrlController,
+              decoration: InputDecoration(
+                  labelText: 'Git Repository URL *', // (필수 항목)
+                  hintText: 'https://github.com/user/repo.git'
+              ),
+              autofocus: true,
+            ),
+            SizedBox(height: 10),
             TextField(controller: nameController, decoration: InputDecoration(labelText: 'App Name (v1.5)')),
             TextField(controller: descController, decoration: InputDecoration(labelText: 'Description')),
           ],
@@ -307,11 +317,20 @@ class _AppCoreState extends State<AppCore> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.cancel)),
           TextButton(
               onPressed: () {
+                final gitUrl = gitUrlController.text.trim();
+                if (gitUrl.isEmpty || !gitUrl.startsWith('https://')) {
+                  // (간단한 유효성 검사)
+                  // (실제로는 gitUrlController 옆에 에러 텍스트를 보여주는 것이 더 좋음)
+                  print("Git URL이 유효하지 않습니다.");
+                  return;
+                }
+
                 final newName = nameController.text.isNotEmpty ? nameController.text : 'New App';
                 final newDesc = descController.text.isNotEmpty ? descController.text : 'New deployment...';
                 Navigator.pop(ctx);
 
                 socket!.emit('start-deploy', {
+                  'gitUrl': gitUrl,
                   'version': newName,
                   'description': newDesc,
                   'isWakeUp': false,
