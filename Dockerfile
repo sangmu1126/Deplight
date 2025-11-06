@@ -6,7 +6,7 @@ WORKDIR /usr/src/app
 
 # 2️⃣ backend 의존성 설치 (캐시 효율을 위해 package.json만 복사)
 COPY backend/package*.json ./backend/
-RUN cd backend && npm install --production
+RUN cd backend && npm install
 
 # 3️⃣ backend 전체 복사
 COPY backend ./backend
