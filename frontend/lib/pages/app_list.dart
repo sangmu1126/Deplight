@@ -6,6 +6,7 @@ import 'dart:math';
 import '../l10n/app_localizations.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import '../widgets/workspace_switcher.dart';
 
 class ShelfPage extends StatefulWidget {
   final String workspaceId;
@@ -15,7 +16,9 @@ class ShelfPage extends StatefulWidget {
   final Function(String, String) onSlackReaction;
   final User currentUser;
   final Map<String, dynamic>? userData;
-  final IO.Socket socket; // (★★★★★ 신규 ★★★★★: socket 받기)
+  final IO.Socket socket;
+  final List<dynamic> workspaces;
+  final Function(String) onCreateWorkspace;
 
   const ShelfPage({
     Key? key,
@@ -26,8 +29,9 @@ class ShelfPage extends StatefulWidget {
     required this.onSlackReaction,
     required this.currentUser,
     this.userData,
-    required this.socket, // (★★★★★ 신규 ★★★★★)
-    // (★★★★★ 삭제 ★★★★★: required this.shelf 제거)
+    required this.socket,
+    required this.workspaces,
+    required this.onCreateWorkspace,
   }) : super(key: key);
 
   @override
@@ -72,6 +76,28 @@ class _ShelfPageState extends State<ShelfPage> {
     });
   }
 
+  void _showCreateWorkspaceDialog() {
+    final nameController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text("새 워크스페이스 생성"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text("취소")),
+          TextButton(
+            onPressed: () {
+              if (nameController.text.isNotEmpty) {
+                widget.onCreateWorkspace(nameController.text);
+                Navigator.pop(ctx);
+              }
+            },
+            child: Text("생성"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<Plant> currentShelf = shelf;
@@ -82,6 +108,20 @@ class _ShelfPageState extends State<ShelfPage> {
       appBar: AppBar(
         title: Text(widget.workspaceName),
         actions: [
+          WorkspaceSwitcher(
+            workspaces: widget.workspaces,
+            currentWorkspaceId: widget.workspaceId,
+            currentWorkspaceName: widget.workspaceName,
+            onWorkspaceSelected: (selectedId, selectedName) {
+              if (selectedId == widget.workspaceId) return; // 이미 선택된 페이지
+              // (다른 워크스페이스 선택 시)
+              // 1. 현재 ShelfPage를 닫고 WorkspaceSelectionPage로 돌아감
+              Navigator.of(context).pop();
+              // 2. AppCore가 새 워크스페이스에 Join하고 ShelfPage를 다시 열도록 함
+              // (이 부분은 AppCore의 onWorkspaceSelected 콜백이 처리함)
+            },
+            onCreateWorkspace: _showCreateWorkspaceDialog,
+          ),
           ProfileMenuButton(
             currentUser: widget.currentUser,
             userData: widget.userData,
