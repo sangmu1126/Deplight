@@ -63,21 +63,21 @@ class ProfileMenuButton extends StatelessWidget {
               ],
             )
         ),
-        PopupMenuItem<String>(
-            value: 'admin',
-            enabled: false,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(l10n.profileTitle),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(color: Colors.red[100], borderRadius: BorderRadius.circular(4)),
-                  child: Text(l10n.profileRole, style: TextStyle(color: Colors.red[700], fontSize: 10, fontWeight: FontWeight.bold)),
-                )
-              ],
-            )
-        ),
+        // PopupMenuItem<String>(
+        //     value: 'admin',
+        //     enabled: false,
+        //     child: Row(
+        //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        //       children: [
+        //         Text(l10n.profileTitle),
+        //         Container(
+        //           padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        //           decoration: BoxDecoration(color: Colors.red[100], borderRadius: BorderRadius.circular(4)),
+        //           child: Text(l10n.profileRole, style: TextStyle(color: Colors.red[700], fontSize: 10, fontWeight: FontWeight.bold)),
+        //         )
+        //       ],
+        //     )
+        // ),
         PopupMenuDivider(),
         PopupMenuItem<String>(
           value: 'mypage',
