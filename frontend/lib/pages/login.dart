@@ -79,10 +79,10 @@ class _LoginPageState extends State<LoginPage> {
               onPressed: _signIn,
               child: Text('로그인'),
             ),
-            TextButton(
-              onPressed: _signUp,
-              child: Text('회원가입'),
-            ),
+            // TextButton(
+            //   onPressed: _signUp,
+            //   child: Text('회원가입'),
+            // ),
           ],
         ),
       ),
