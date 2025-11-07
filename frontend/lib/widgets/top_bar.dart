@@ -42,14 +42,13 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    // (1) 워크스페이스 '선택 전' (이미지 상단과 100% 일치)
+    // (1) 워크스페이스 '선택 전' (기존과 100% 동일)
     if (selectedWorkspaceId == null) {
       return AppBar(
-        toolbarHeight: 80, // 높이 조절
-        backgroundColor: Colors.transparent, // 그라데이션 배경 보이게
+        toolbarHeight: 80,
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        // (패딩 조절을 위해 title을 수동으로 배치)
-        automaticallyImplyLeading: false, // (뒤로가기 버튼 숨김)
+        automaticallyImplyLeading: false,
         flexibleSpace: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 48.0, vertical: 20.0),
           child: Row(
@@ -58,6 +57,7 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
               // 로고
               Row(
                 children: [
+                  // (로고 이미지는 'logo_small.png' 또는 'deplight_logo_52.png' 등 올바른 경로로 수정하세요)
                   Image.asset('assets/logo_small.png', height: 40, width: 40, fit: BoxFit.contain),
                   const SizedBox(width: 8),
                   Text(
@@ -70,7 +70,7 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
                   ),
                 ],
               ),
-              // 로그아웃 버튼 (이미지와 100% 일치)
+              // 로그아웃 버튼
               TextButton.icon(
                 onPressed: onLogout,
                 icon: Icon(Icons.logout, size: 18, color: _textColor),
@@ -91,35 +91,76 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
       );
     }
 
-    // (2) 워크스페이스 '선택 후' (ShelfPage의 AppBar)
+    // --- (수정) ---
+    // (2) 워크스페이스 '선택 후' (applist.jpg 이미지와 100% 일치)
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 1,
-      leading: IconButton(
-        icon: Icon(Icons.arrow_back),
-        onPressed: goBackToWorkspaceSelection, // (AppCore의 함수 호출)
-      ),
-      title: Text(selectedWorkspaceName),
-      actions: [
-        if (!isLoading)
-          WorkspaceSwitcher(
-            workspaces: workspaces,
-            currentWorkspaceId: selectedWorkspaceId,
-            currentWorkspaceName: selectedWorkspaceName,
-            onWorkspaceSelected: onWorkspaceSelected, // (AppCore의 함수 호출)
-            onCreateWorkspace: onCreateWorkspace, // (AppCore의 함수 호출)
+      // (수정) 뒤로가기 버튼 제거
+      automaticallyImplyLeading: false,
+
+      // (수정) title 영역에 로고 + WorkspaceSwitcher 배치
+      titleSpacing: 48.0, // 왼쪽 패딩
+      title: Row(
+        children: [
+          // 로고
+          Image.asset('assets/logo_small.png', height: 32, width: 32, fit: BoxFit.contain),
+          const SizedBox(width: 8),
+          Text(
+            'Deplight',
+            style: textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: _textColor,
+            ),
           ),
+
+          // 구분선
+          const SizedBox(width: 16),
+          VerticalDivider(width: 1, thickness: 1, indent: 16, endIndent: 16, color: Colors.grey[300]),
+          const SizedBox(width: 16),
+
+          // WorkspaceSwitcher (actions에서 title로 이동)
+          if (!isLoading)
+            WorkspaceSwitcher(
+              workspaces: workspaces,
+              currentWorkspaceId: selectedWorkspaceId,
+              currentWorkspaceName: selectedWorkspaceName,
+              onWorkspaceSelected: onWorkspaceSelected,
+              onCreateWorkspace: onCreateWorkspace,
+            ),
+        ],
+      ),
+
+      // (수정) actions에 검색, 알림, 프로필 메뉴 배치
+      actions: [
+        // 검색 아이콘
+        IconButton(
+          icon: Icon(Icons.search, color: Colors.grey[600]),
+          onPressed: () { /* TODO: 검색 기능 구현 */ },
+          tooltip: '검색',
+        ),
+
+        // 알림 아이콘
+        IconButton(
+          icon: Icon(Icons.notifications_outlined, color: Colors.grey[600]),
+          onPressed: () { /* TODO: 알림 기능 구현 */ },
+          tooltip: '알림',
+        ),
+
+        // 프로필 메뉴
         if (!isLoading)
           ProfileMenuButton(
             currentUser: currentUser,
             userData: userData,
-            onLogout: onLogout, // (AppCore의 함수 호출)
+            onLogout: onLogout,
           ),
+
+        const SizedBox(width: 24), // 오른쪽 끝 패딩
       ],
     );
   }
 
-  // AppBar의 기본 높이(kToolbarHeight) 또는 지정한 높이(80)를 반환합니다.
+  // (수정) '선택 후' AppBar 높이를 kToolbarHeight(표준)로 사용
   @override
   Size get preferredSize => Size.fromHeight(selectedWorkspaceId == null ? 80.0 : kToolbarHeight);
 }
