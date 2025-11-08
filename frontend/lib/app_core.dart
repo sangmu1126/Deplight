@@ -19,7 +19,7 @@ import 'models/logEntry_model.dart';
 import 'pages/workspace_selection.dart';
 import 'pages/app_list.dart';
 import 'pages/deployment.dart';
-import 'pages/loading.dart';
+// import 'pages/loading.dart';
 import 'models/workspace.dart';
 import 'models/user_data.dart';
 import 'widgets/top_bar.dart';
@@ -29,6 +29,7 @@ import 'pages/deployment.dart';
 import 'app_state.dart';
 import 'widgets/new_deploy.dart';
 import '../widgets/new_workspace.dart';
+import 'widgets/deploy_modal.dart';
 
 
 class AppStateNavBuilder extends StatelessWidget {
@@ -362,10 +363,9 @@ class _AppCoreState extends State<AppCore> {
 
     showDialog(
       context: context,
-      // (수정) NewDeploymentDialog 위젯 사용
-      builder: (ctx) => NewDeploymentDialog(
+      builder: (ctx) => NewDeploymentDialog( // (Git URL 입력창)
         onDeploymentStart: (appName, gitUrl, description) {
-          // NewDeploymentDialog에서 전달받은 데이터를 사용
+
           final newName = appName.isNotEmpty ? appName : 'New App';
           final newDesc = description != null && description.isNotEmpty ? description : 'New deployment...';
 
@@ -377,11 +377,17 @@ class _AppCoreState extends State<AppCore> {
             'workspaceId': workspaceId,
           });
 
-          // DeploymentLoadingPage로 이동하는 로직은 그대로 유지
-          Navigator.push(context, MaterialPageRoute(
-              builder: (context) => DeploymentLoadingPage(),
-              settings: RouteSettings(name: '/loading')
-          ));
+          // Git URL 입력창이 닫힌 *직후*에
+          // 새로운 'DeployModal' (야구 애니메이션)을 띄웁니다.
+
+          // (삭제) Navigator.push(context, MaterialPageRoute(builder: (context) => DeploymentLoadingPage(), ...));
+
+          // (신규) 배포 진행률 모달을 띄웁니다.
+          showDialog(
+            context: context,
+            barrierDismissible: false, // 배포 중에는 밖을 눌러 닫기 방지
+            builder: (deployCtx) => const DeployModal(),
+          );
         },
       ),
     );
