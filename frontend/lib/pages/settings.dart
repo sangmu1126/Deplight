@@ -6,10 +6,12 @@ class SettingsPage extends StatelessWidget {
   // (★★★★★) app_core의 body를 교체하기 위한 콜백
   // 이미지의 "프로필로 돌아가기" 버튼에 연결됩니다.
   final VoidCallback onGoBackToProfile;
+  final Function(String name, String value, String? description) onAddSecret;
 
   const SettingsPage({
     Key? key,
     required this.onGoBackToProfile,
+    required this.onAddSecret,
   }) : super(key: key);
 
   // --- 이미지 기준 색상 정의 ---
@@ -305,19 +307,12 @@ class SettingsPage extends StatelessWidget {
                     builder: (BuildContext dialogContext) {
                       return NewSecretDialog(
                         onSecretAdded: (name, value, description) {
-                          // (콜백) 여기서 Secret 추가 로직 실행
-                          print("새 Secret 추가됨:");
-                          print("Name: $name");
-                          print("Value: $value");
-                          print("Desc: $description");
-
-                          // 예: appState.addSecret(name, value, description);
+                          onAddSecret(name, value, description);
                         },
                       );
                     },
                   );
                 },
-                // (수정) Text 대신 Icon과 Label을 사용합니다.
                 icon: const Icon(Icons.add, size: 18), // 아이콘
                 label: const Text(
                   "새 Secret 추가", // 텍스트
