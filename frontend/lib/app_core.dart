@@ -270,7 +270,31 @@ class _AppCoreState extends State<AppCore> {
     );
 
     if (mounted) {
-      appState.navigateToDeployment(newPlant);
+      // 1. AppState에 새로 생성된 Plant를 설정 (상태 업데이트용)
+      appState.selectedPlant.value = newPlant;
+
+      // 2. DeploymentPage로의 페이지 이동은 하지 않음 (모달만 띄움)
+      showDialog(
+          context: context,
+          barrierDismissible: false, // 사용자가 임의로 닫지 못하도록 방지
+          builder: (deployCtx) {
+            // 화면 크기를 기반으로 모달 크기 설정
+            final Size screenSize = MediaQuery.of(deployCtx).size;
+
+            // (신규) PipelineMonitor 위젯을 포함하는 Dialog 반환
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Container(
+                width: screenSize.width * 0.8, // 화면 너비의 80%
+                height: screenSize.height * 0.9, // 화면 높이의 90%
+                padding: const EdgeInsets.all(0),
+                // PipelineMonitor는 status 객체를 받아야 하지만,
+                // 배포 시작 시에는 status가 null이므로, Loading 위젯을 대신 띄웁니다.
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            );
+          }
+      );
     }
   }
 
