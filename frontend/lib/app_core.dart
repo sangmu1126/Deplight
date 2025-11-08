@@ -305,37 +305,24 @@ class _AppCoreState extends State<AppCore> {
     });
   }
 
-  void _onStatusUpdate(dynamic data) {
-    if (!mounted) return;
-    // shelf 변수가 없으므로 이 로직은 이제 ShelfPage 또는 DeploymentPage에서 처리되어야 함
-    /*
-    setState(() {
-      try {
-        final plant = shelf.firstWhere((p) => p.id == data['id']);
-        plant.status = data['status'];
-        plant.currentStatusMessage = data['message'];
-      } catch (e) { print('Status for unknown plant: ${data['id']}'); }
-    });
-    */
-  }
+  void _addSecret(String name, String value, String? description) {
+    if (appState.socket == null) {
+      print("Socket is not connected.");
+      return;
+    }
+    // 현재 선택된 워크스페이스 ID를 AppState에서 가져옵니다.
+    final String? workspaceId = appState.selectedWorkspaceId.value;
+    if (workspaceId == null) {
+      print("No workspace selected.");
+      return;
+    }
 
-  void _onReactionUpdate(dynamic data) {
-    if (!mounted) return;
-    // shelf 변수가 없으므로 이 로직은 이제 ShelfPage에서 처리되어야 함
-    /*
-    setState(() {
-      try {
-        final plant = shelf.firstWhere((p) => p.id == data['id']);
-        plant.reactions = List<String>.from(data['reactions']);
-        plant.isSparkling = true;
-        Future.delayed(Duration(seconds: 2), () {
-          if (mounted) {
-            setState(() => plant.isSparkling = false);
-          }
-        });
-      } catch (e) { print('Reaction for unknown plant: ${data['id']}'); }
+    appState.socket!.emit('add-secret', {
+      'workspaceId': workspaceId,
+      'name': name,
+      'value': value,
+      'description': description,
     });
-    */
   }
 
   void _onMetricsUpdate(dynamic data) {
@@ -358,11 +345,11 @@ class _AppCoreState extends State<AppCore> {
   }
 
   void _createNewWorkspace(String name, String description, String type) {
-    if (socket == null || name.isEmpty || description.isEmpty) return;
-    socket!.emit('create-workspace', {
+    if (appState.socket == null) return;
+    appState.socket!.emit('create-workspace', {
       'name': name,
       'description': description,
-      'type': type, // (서버가 'type'을 받도록 준비해야 함)
+      'type': type,
     });
   }
 
@@ -515,6 +502,7 @@ class _AppCoreState extends State<AppCore> {
         // --- Index 3: settings ---
         SettingsPage(
           onGoBackToProfile: appState.goBackToProfile, // (수정)
+          onAddSecret: _addSecret,
         ),
 
         // --- Index 4: deployment ---
