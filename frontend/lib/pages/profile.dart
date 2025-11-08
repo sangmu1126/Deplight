@@ -1,52 +1,75 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // (수정) import 추가
+import '../models/user_data.dart'; // (수정) import 추가 (경로는 실제 위치에 맞게 조정하세요)
+// import 'package:intl/intl.dart'; // (선택) 날짜 포매팅을 위해 필요할 수 있습니다.
 
 class ProfilePage extends StatelessWidget {
   final VoidCallback onGoBackToDashboard;
+  final User currentUser; // (수정) Firebase 유저 정보
+  final UserData? userData; // (수정) Firestore 유저 정보 (null일 수 있음)
 
   const ProfilePage({
     Key? key,
     required this.onGoBackToDashboard,
+    required this.currentUser, // (수정) 생성자에 추가
+    required this.userData, // (수정) 생성자에 추가
   }) : super(key: key);
 
   // --- 이미지 기준 색상 정의 ---
-  static const Color _backgroundColor = Color(0xFFF9FAFB); // 페이지 배경
+  static const Color _backgroundColor = Color(0xFFF9FAFB);
   static const Color _cardColor = Colors.white;
-  static const Color _textColor = Color(0xFF111827); // (진한 텍스트)
-  static const Color _subTextColor = Color(0xFF6B7280); // (연한 텍스트)
-  static const Color _borderColor = Color(0xFFE5E7EB); // (구분선, 테두리)
-  static const Color _dangerColor = Color(0xFFEF4444); // (삭제 버튼)
-  static const Color _primaryColor = Color(0xFF678AFB); // (앱 기본 파란색)
-  static const Color _avatarBgColor = Color(0xFFE0E7FF); // (아바타 배경)
+  static const Color _textColor = Color(0xFF111827);
+  static const Color _subTextColor = Color(0xFF6B7280);
+  static const Color _borderColor = Color(0xFFE5E7EB);
+  static const Color _dangerColor = Color(0xFFEF4444);
+  static const Color _primaryColor = Color(0xFF678AFB);
+  static const Color _avatarBgColor = Color(0xFFE0E7FF);
+
+  // (신규) 날짜 포매팅 헬퍼
+  String _formatTimestamp(Timestamp? timestamp) {
+    if (timestamp == null) return "정보 없음";
+    // (간단한 포매팅)
+    return timestamp.toDate().toLocal().toString().split(' ')[0];
+    // (복잡한 포매팅 예시: intl 패키지 필요)
+    // return DateFormat('yyyy.MM.dd').format(timestamp.toDate().toLocal());
+  }
+
+  // (신규) 날짜 포매팅 헬퍼 (DateTime)
+  String _formatDateTime(DateTime? dateTime) {
+    if (dateTime == null) return "정보 없음";
+    // (간단한 포매팅)
+    return dateTime.toLocal().toString().split('.')[0]; // 밀리초 제외
+    // (복잡한 포매팅 예시: intl 패키지 필요)
+    // return DateFormat('yyyy.MM.dd HH:mm').format(dateTime.toLocal());
+  }
+
 
   @override
   Widget build(BuildContext context) {
     // TopBar가 app_core에 있으므로 이 페이지는 Scaffold가 없습니다.
     return Container(
-      color: _backgroundColor, // 1. 전체 배경색 적용
-      child: SingleChildScrollView( // 2. 세로 오버플로우 시 스크롤
+      color: _backgroundColor,
+      child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 48.0, vertical: 24.0),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1200), // 최대 너비
+            constraints: const BoxConstraints(maxWidth: 1200),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // --- 1. 페이지 헤더 ---
                 _buildHeader(context),
                 const SizedBox(height: 24),
-                // --- 2. 메인 컨텐츠 (2단 컬럼) ---
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // --- 2-1. 왼쪽 컬럼 ---
                     Expanded(
-                      flex: 6, // (비율 조절)
+                      flex: 6,
                       child: _buildLeftColumn(context),
                     ),
                     const SizedBox(width: 24),
-                    // --- 2-2. 오른쪽 컬럼 ---
                     Expanded(
-                      flex: 4, // (비율 조절)
+                      flex: 4,
                       child: _buildRightColumn(context),
                     ),
                   ],
@@ -113,6 +136,7 @@ class ProfilePage extends StatelessWidget {
         const SizedBox(height: 24),
         _buildAccountCard(context),
         const SizedBox(height: 24),
+        // (수정) _buildActivityCard에 데이터 전달
         _buildActivityCard(context),
       ],
     );
@@ -151,6 +175,15 @@ class ProfilePage extends StatelessWidget {
 
   // --- "기본 정보" 카드 ---
   Widget _buildBasicInfoCard(BuildContext context) {
+    // (수정) UserData 모델 기반으로 변수 수정
+    final String displayName = userData?.displayName ?? currentUser.displayName ?? "사용자";
+    final String email = currentUser.email ?? "이메일 없음";
+    final String initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : "U";
+    final String role = userData?.role ?? "user"; // (수정) "부서" 대신 "역할"
+    final String phone = "정보 없음"; // (수정) 모델에 없으므로
+    // final String position = "정보 없음"; // (수정) 모델에 없으므로
+    // final String bio = "정보 없음"; // (수정) 모델에 없으므로
+
     return _buildBaseCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -173,9 +206,9 @@ class ProfilePage extends StatelessWidget {
               CircleAvatar(
                 radius: 32,
                 backgroundColor: _avatarBgColor,
-                child: const Text(
-                  "김",
-                  style: TextStyle(
+                child: Text(
+                  initial, // (수정)
+                  style: const TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
                       color: _primaryColor),
@@ -188,10 +221,11 @@ class ProfilePage extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Expanded(child: _buildInfoPair("이름", "김개발")),
+                        Expanded(child: _buildInfoPair("이름", displayName)), // (수정)
                         Expanded(
                             child: _buildInfoPair(
-                                "이메일", "kim@company.com",
+                                "이메일",
+                                email, // (수정)
                                 subtitle: "이메일은 변경할 수 없습니다")),
                       ],
                     ),
@@ -199,27 +233,19 @@ class ProfilePage extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                            child: _buildInfoPair("전화번호", "+82 10-1234-5678")),
-                        Expanded(child: _buildInfoPair("부서", "개발팀")),
+                            child: _buildInfoPair("전화번호", phone)), // (수정)
+                        Expanded(child: _buildInfoPair("역할", role)), // (수정) "부서" -> "역할"
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                            child: _buildInfoPair("직책", "Senior Developer")),
-                        const Expanded(child: SizedBox()), // 빈 공간
-                      ],
-                    ),
+                    // (수정) 직책, 소개 필드가 없으므로 해당 Row들 제거
                   ],
                 ),
               ),
             ],
           ),
-          const Divider(color: _borderColor, height: 32),
-          // 소개
-          _buildInfoPair(
-              "소개", "풀스택 개발자로 5년간 근무하고 있습니다. React, Node.js, Python을 주로 사용합니다."),
+          // (수정) 소개 섹션 제거
+          // const Divider(color: _borderColor, height: 32),
+          // _buildInfoPair("소개", bio),
         ],
       ),
     );
@@ -253,6 +279,7 @@ class ProfilePage extends StatelessWidget {
 
   // --- "알림 설정" 카드 ---
   Widget _buildNotificationCard(BuildContext context) {
+    // (이 카드는 데이터 연동 없이 하드코딩된 상태로 둡니다. 필요시 수정하세요.)
     return _buildBaseCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -313,6 +340,7 @@ class ProfilePage extends StatelessWidget {
 
   // --- "보안 설정" 카드 ---
   Widget _buildSecurityCard(BuildContext context) {
+    // (이 카드는 데이터 연동 없이 하드코딩된 상태로 둡니다.)
     return _buildBaseCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -384,6 +412,7 @@ class ProfilePage extends StatelessWidget {
 
   // --- "계정 관리" 카드 ---
   Widget _buildAccountCard(BuildContext context) {
+    // (이 카드는 데이터 연동 없이 하드코딩된 상태로 둡니다.)
     return _buildBaseCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -425,19 +454,23 @@ class ProfilePage extends StatelessWidget {
 
   // --- "활동 요약" 카드 ---
   Widget _buildActivityCard(BuildContext context) {
+    // (수정) 하드코딩된 값 대신 실제 데이터 사용
+    final String lastLogin = _formatDateTime(currentUser.metadata.lastSignInTime);
+    final String joinDate = _formatTimestamp(userData?.createdAt);
+
     return _buildBaseCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildCardHeader(context, "활동 요약"),
           const SizedBox(height: 16),
-          _buildActivityRow("총 배포 횟수", "127회"),
+          _buildActivityRow("총 배포 횟수", "N/A"), // (수정) 데이터 없음
           const Divider(color: _borderColor, height: 16),
-          _buildActivityRow("활성 앱", "5개"),
+          _buildActivityRow("활성 앱", "N/A"), // (수정) 데이터 없음
           const Divider(color: _borderColor, height: 16),
-          _buildActivityRow("마지막 로그인", "2시간 전"),
+          _buildActivityRow("마지막 로그인", lastLogin), // (수정)
           const Divider(color: _borderColor, height: 16),
-          _buildActivityRow("가입일", "2023.03.15"),
+          _buildActivityRow("가입일", joinDate), // (수정)
         ],
       ),
     );
