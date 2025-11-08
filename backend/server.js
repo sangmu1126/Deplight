@@ -236,8 +236,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // (수정) 4. 'start-rollback' - 보안 강화
-// 'start-rollback' 핸들러 리팩토링
+// 'start-rollback' 핸들러 리팩토링: 보안 강화
   socket.on('start-rollback', async (data) => {
     try {
       // 1. 스키마 검증
@@ -245,13 +244,22 @@ io.on('connection', (socket) => {
       const plantRef = db.collection('plants').doc(payload.plantId);
       const doc = await plantRef.get();
 
-      // 2. (보안) (기존 로직)
-      if (!doc.exists) return emitLog(0, 'SYSTEM_ERROR', '앱을 찾을 수 없습니다.', 0, socket);
-      // ... (멤버십 확인 등)
+      // 2. (보안) 
+      if (!doc.exists) {
+        return emitLog(0, 'SYSTEM_ERROR', '앱을 찾을 수 없습니다.', 0, socket);
+      }
       
-      // 3. (기존 로직)
+      // 이 plant가 속한 workspace의 멤버인지 확인하는 로직
+      const wsDoc = await db.collection('workspaces').doc(doc.data().workspaceId).get();
+      if (!wsDoc.exists || !wsDoc.data().members.includes(userUid)) {
+        return emitLog(0, 'SYSTEM_ERROR', '롤백 권한이 없습니다.', 0, socket);
+      }
+      
       const plantData = { id: doc.id, ...doc.data() };
-      // ... (다른 작업 진행 중인지 확인)
+      // 다른 작업 진행 중인지 확인
+      if (plantData.status === 'DEPLOYING' || plantData.status === 'ROLLBACK') {
+        return emitLog(plantData.id, 'SYSTEM_ERROR', '이미 다른 작업이 진행 중입니다.', 0, socket);
+      }
       runFakeRollback(plantData);
 
     } catch (err) {
@@ -469,55 +477,158 @@ async function emitLog(deployId, status, message, delay = 0, socket = null) {
     const emitter = socket || io;
     emitter.emit('new-log', { id: deployId, log: newLog });
 
-    // (수정) 상태 업데이트는 해당 plant가 속한 '방(Room)'에만 전송
-    if (!status.startsWith('CONSOLE') && status !== 'COMMAND' && status !== 'TRAFFIC_HIT') {
-      if (deployId !== 0) {
-        try {
-          const doc = await db.collection('plants').doc(deployId).get();
-          const workspaceId = doc.data().workspaceId;
-          if (workspaceId) {
-            io.to(workspaceId).emit('status-update', { id: deployId, status, message });
-          }
-        } catch (e) { }
-      }
-    }
-    if (status === 'AI_INSIGHT') {
-      if (deployId !== 0) {
-        try {
-          const doc = await db.collection('plants').doc(deployId).get();
-          const workspaceId = doc.data().workspaceId;
-          if (workspaceId) {
-            io.to(workspaceId).emit('ai-insight', { id: deployId, message });
-          }
-        } catch (e) { }
-      }
-    }
+    // // 상태 업데이트는 해당 plant가 속한 '방(Room)'에만 전송
+    // if (!status.startsWith('CONSOLE') && status !== 'COMMAND' && status !== 'TRAFFIC_HIT') {
+    //   if (deployId !== 0) {
+    //     try {
+    //       const doc = await db.collection('plants').doc(deployId).get();
+    //       const workspaceId = doc.data().workspaceId;
+    //       if (workspaceId) {
+    //         io.to(workspaceId).emit('status-update', { id: deployId, status, message });
+    //       }
+    //     } catch (e) { }
+    //   }
+    // }
+    // if (status === 'AI_INSIGHT') {
+    //   if (deployId !== 0) {
+    //     try {
+    //       const doc = await db.collection('plants').doc(deployId).get();
+    //       const workspaceId = doc.data().workspaceId;
+    //       if (workspaceId) {
+    //         io.to(workspaceId).emit('ai-insight', { id: deployId, message });
+    //       }
+    //     } catch (e) { }
+    //   }
+    // }
   }, delay);
 }
 
-// (★★★★★ 수정 ★★★★★: run... Deploy/Rollback - Firestore 업데이트)
-// (내부 로직은 이전과 동일 - DB를 업데이트하면 onSnapshot 리스너가 자동 감지)
 async function runFakeSelfHealingDeploy(deployId, isWakeUp = false) {
   const plantRef = db.collection('plants').doc(deployId);
+  
+  // AWS 파이프라인 단계 정의
+  const pipelineSteps = [
+    { id: 'git_clone', name: 'Git Clone & Setup', status: 'pending', progress: 0 },
+    { id: 'ai_analysis', name: 'AI Code Analysis', status: 'pending', progress: 0 },
+    { id: 'docker_build', name: 'Docker Build', status: 'pending', progress: 0 },
+    { id: 'ecr_push', name: 'ECR Push', status: 'pending', progress: 0 },
+    { id: 'infra_update', name: 'Infrastructure Update', status: 'pending', progress: 0 },
+    { id: 'ecs_deploy', name: 'ECS Deployment', status: 'pending', progress: 0 },
+    { id: 'health_check', name: 'Health Check', status: 'pending', progress: 0 },
+    { id: 'verification', name: 'Verification', status: 'pending', progress: 0 }
+  ];
 
-  emitLog(deployId, 'linting', '🧐 흙을 고르고 씨앗을 심는 중...', 1000);
-  emitLog(deployId, 'testing', '✅ 새싹이 돋아났어요.', 3000);
-  emitLog(deployId, 'building', '📦 줄기가 자라고 있어요.', 5000);
-  emitLog(deployId, 'deploying', '🚀 Canary 트래픽 10% 전송...', 7000);
+  let overallProgress = 0;
+  const totalSteps = pipelineSteps.length;
+  let workspaceId = null;
 
-  if (isWakeUp) {
-    emitLog(deployId, 'done', '✅ 배포 성공! 겨울잠에서 깨어났습니다.', 9000);
-    emitLog(deployId, 'AI_INSIGHT', '서비스 안정화 완료', 9500);
+  try {
+    // (★★★★★ 수정 ★★★★★)
+    // 1. workspaceId를 먼저 로드하여 할당합니다.
+    const doc = await plantRef.get();
+    if (!doc.exists) { throw new Error("Plant not found"); }
+    workspaceId = doc.data().workspaceId; // ◀ 여기서 먼저 할당됨
+    if (!workspaceId) { throw new Error("Workspace ID not found on plant."); }
+
+
+    // (★★★★★ 수정 ★★★★★)
+    // emitPipelineState 함수 정의 (이제 workspaceId가 정의되어 있음)
+    const emitPipelineState = (message) => {
+      // workspaceId가 null이면 실행하지 않음 (오류 방지)
+      if (!workspaceId) return; 
+
+      const completed = pipelineSteps.filter(s => s.status === 'completed').length;
+      const activeStep = pipelineSteps.find(s => s.status === 'active');
+      
+      let activeProgress = 0;
+      if (activeStep) {
+         activeProgress = (activeStep.progress / 100) * (100 / totalSteps);
+      }
+      overallProgress = ((completed / totalSteps) * 100) + activeProgress;
+
+      io.to(workspaceId).emit('pipeline-update', {
+        id: deployId,
+        steps: pipelineSteps,
+        overallProgress: overallProgress,
+        message: message,
+      });
+    };
+
+    // --- (신규) 스텝 실행 헬퍼 (함수 내부에 유지) ---
+    // (runStep 함수는 이전과 동일합니다.)
+    const runStep = async (stepIndex, duration, failureChance = 0) => {
+      const step = pipelineSteps[stepIndex];
+      step.status = 'active';
+      
+      const stepMessage = `[${stepIndex + 1}/${totalSteps}] ${step.name}...`;
+      emitPipelineState(stepMessage);
+      emitLog(deployId, 'PIPELINE', stepMessage, 0);
+
+      for (let p = 0; p <= 100; p += 20) {
+        await new Promise(res => setTimeout(res, duration / 5));
+        step.progress = p;
+        emitPipelineState(stepMessage);
+      }
+      
+      if (failureChance > 0 && Math.random() < failureChance) {
+        throw new Error(`Simulated Failure at ${step.name}`);
+      }
+
+      step.status = 'completed';
+      emitPipelineState(`${step.name} 완료.`);
+    };
+
+
+    // --- 1. 배포 시작 ---
+    await plantRef.update({ status: 'DEPLOYING', aiInsight: 'AWS 파이프라인 시작' });
+    emitPipelineState("배포를 시작합니다..."); // ◀ 이제 workspaceId가 정의된 상태입니다.
+
+    // --- 2. 겨울잠 깨우기 (isWakeUp) ---
+    if (isWakeUp) {
+      emitLog(deployId, 'SYSTEM', '🌱 "겨울잠"에서 깨어나는 중...', 0);
+      await new Promise(res => setTimeout(res, 2000));
+      pipelineSteps.forEach(s => { s.status = 'completed'; s.progress = 100; });
+      emitPipelineState("앱이 깨어났습니다!");
+
+    } else {
+      // --- 3. 정규 배포 파이프라인 실행 ---
+      await runStep(0, 2000); // Git Clone
+      await runStep(1, 3000); // AI Analysis
+      await runStep(2, 5000, 0.5); // Docker Build (50% 실패 확률)
+      await runStep(3, 3000); // ECR Push
+      await runStep(4, 4000); // Infra Update
+      await runStep(5, 3000); // ECS Deploy
+      await runStep(6, 2000); // Health Check
+      await runStep(7, 1000); // Verification
+    }
+
+    // --- 4. 최종 성공 ---
+    emitLog(deployId, 'done', '✅ 배포 성공! 서비스가 활성화되었습니다.', 0);
+    await plantRef.update({ status: 'HEALTHY', plantType: 'rose', updatedAt: new Date() });
+    io.to(workspaceId).emit('pipeline-complete', { id: deployId, status: 'HEALTHY' });
+
+  } catch (err) {
+    // --- 5. 실패 처리 ---
+    console.error(`Pipeline Error (DeployID: ${deployId}):`, err.message);
+    const failedStep = pipelineSteps.find(s => s.status === 'active');
+    
+    if (failedStep) {
+      failedStep.status = 'failed';
+    }
+    
+    // (수정) 중복 호출 제거 및 최종 상태 UI 업데이트
+    emitPipelineState(`${failedStep ? failedStep.name : 'Unknown'} 단계에서 오류 발생`); 
+    
+    // AI 롤백 로직 호출 대신, 사용자 승인 대기 상태로 변경
+    emitLog(deployId, 'AI_INSIGHT', '🚨 에러 감지! 사용자 승인 대기 중...', 1000);
+    
     setTimeout(async () => {
-      await plantRef.update({ status: 'HEALTHY', plantType: 'rose', updatedAt: new Date() });
-    }, 9000);
-  } else {
-    emitLog(deployId, 'TRAFFIC_ERROR', '500 - /api/checkout', 9000);
-    emitLog(deployId, 'AI_INSIGHT', '🚨 에러 감지! 자동 롤백 시작...', 10000);
-    setTimeout(async () => {
-      const doc = await plantRef.get();
-      if (doc.exists) runFakeRollback({ id: doc.id, ...doc.data() });
-    }, 11000);
+      // Plant 상태를 'FAILED'로 업데이트하여 UI가 롤백 버튼을 활성화하도록 합니다.
+      await plantRef.update({ status: 'FAILED', aiInsight: '롤백 승인을 기다리는 중입니다.' }); 
+      
+      // 클라이언트에게 롤백 승인이 필요하다고 명시적으로 알립니다.
+      io.to(workspaceId).emit('rollback-required', { id: deployId }); 
+    }, 2000);
   }
 }
 
