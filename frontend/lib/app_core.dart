@@ -28,6 +28,7 @@ import 'pages/settings.dart';
 import 'pages/deployment.dart';
 import 'app_state.dart';
 import 'widgets/new_deploy.dart';
+import '../widgets/new_workspace.dart';
 
 
 class AppStateNavBuilder extends StatelessWidget {
@@ -356,11 +357,12 @@ class _AppCoreState extends State<AppCore> {
     });
   }
 
-  void _createNewWorkspace(String name, String description) {
+  void _createNewWorkspace(String name, String description, String type) {
     if (socket == null || name.isEmpty || description.isEmpty) return;
     socket!.emit('create-workspace', {
       'name': name,
-      'description': description
+      'description': description,
+      'type': type, // (서버가 'type'을 받도록 준비해야 함)
     });
   }
 
@@ -404,71 +406,17 @@ class _AppCoreState extends State<AppCore> {
   }
 
   void _showCreateWorkspaceDialog(BuildContext context) {
-    final TextEditingController nameController = TextEditingController();
-    final TextEditingController descriptionController = TextEditingController();
-    final _formKey = GlobalKey<FormState>();
-
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-        contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        title: Text(
-          '새 워크스페이스 생성',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        content: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: nameController,
-                decoration: InputDecoration(
-                  labelText: '워크스페이스 이름',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) return '이름을 입력해주세요.';
-                  return null;
-                },
-                autofocus: true,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: descriptionController,
-                decoration: InputDecoration(
-                  labelText: '설명',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                maxLines: 3,
-                validator: (value) {
-                  if (value == null || value.isEmpty) return '설명을 입력해주세요.';
-                  return null;
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('취소'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (_formKey.currentState!.validate()) {
-                // (수정) onCreateWorkspace(..) 대신 _createNewWorkspace 직접 호출
-                _createNewWorkspace(nameController.text, descriptionController.text);
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('생성'),
-          ),
-        ],
-      ),
+      builder: (BuildContext dialogContext) {
+        return NewWorkspaceDialog(
+          onWorkspaceCreated: (name, description, type) {
+            // (콜백) 여기서 생성 로직 실행
+            print("새 워크스페이스 생성됨: $name ($type)");
+            _createNewWorkspace(name, description, type);
+          },
+        );
+      },
     );
   }
 
@@ -531,7 +479,7 @@ class _AppCoreState extends State<AppCore> {
           currentUser: _currentUser!,
           userData: _userData,
           workspaces: _workspaces,
-          onCreateWorkspace: (name, description) => _createNewWorkspace(name, description),
+          onCreateWorkspace: () => _showCreateWorkspaceDialog(context),
           onLogout: _onLogout,
           onWorkspaceSelected: appState.onWorkspaceSelected, // (수정)
         ),
@@ -549,7 +497,7 @@ class _AppCoreState extends State<AppCore> {
                 workspaceName: navState.workspaceName, // (수정)
                 socket: socket!,
                 workspaces: _workspaces,
-                onCreateWorkspace: (name, description) => _createNewWorkspace(name, description),
+                onCreateWorkspace: () => _showCreateWorkspaceDialog(context),
                 onDeploy: () => _startNewDeployment(context, navState.workspaceId!),
                 onPlantTap: appState.navigateToDeployment, // (수정)
                 onSlackReaction: (id, emoji) => _sendSlackReaction(id, emoji),
