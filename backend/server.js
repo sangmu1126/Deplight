@@ -5,7 +5,7 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const admin = require('firebase-admin');
 
-const { 
+const {
   createWorkspaceSchema,
   startDeploySchema,
   startRollbackSchema,
@@ -13,6 +13,23 @@ const {
   deleteSecretSchema,
   updateSecretSchema
 } = require('./schemas');
+
+const GitHubService = require('./github_service');
+
+// Initialize GitHub service (GitHub token from environment variable)
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+let githubService = null;
+
+if (GITHUB_TOKEN) {
+  try {
+    githubService = new GitHubService(GITHUB_TOKEN);
+    console.log('✅ GitHub Service initialized successfully');
+  } catch (error) {
+    console.error('⚠️ Failed to initialize GitHub Service:', error.message);
+  }
+} else {
+  console.warn('⚠️  No GITHUB_TOKEN found. Real deployments will not work.');
+}
 
 // Firebase Admin SDK 초기화
 if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
@@ -228,7 +245,13 @@ io.on('connection', (socket) => {
         };
         const docRef = await db.collection('plants').add(newPlant);
         socket.emit('new-plant', { id: docRef.id, ...newPlant });
-        runFakeSelfHealingDeploy(docRef.id, false);
+
+        // 실제 GitHub Actions 배포 트리거
+        if (githubService) {
+          runRealGitHubDeploy(docRef.id, gitUrl, 'main');
+        } else {
+          runFakeSelfHealingDeploy(docRef.id, false);
+        }
       }
     } catch (err) {
       console.error('Start Deploy Error:', err);
@@ -493,6 +516,109 @@ async function emitLog(deployId, status, message, delay = 0, socket = null) {
       }
     }
   }, delay);
+}
+
+// (★★★★★ 신규 - 실제 GitHub Actions 배포 ★★★★★)
+async function runRealGitHubDeploy(deployId, targetRepository, targetBranch = 'main') {
+  const plantRef = db.collection('plants').doc(deployId);
+
+  try {
+    // 1. GitHub Actions workflow 트리거
+    emitLog(deployId, 'linting', '🚀 GitHub Actions 워크플로우 트리거 중...', 500);
+
+    const result = await githubService.triggerDeployment(targetRepository, targetBranch, deployId);
+
+    emitLog(deployId, 'testing', `✅ 배포 워크플로우가 시작되었습니다 (Run ID: ${result.runId})`, 1000);
+    emitLog(deployId, 'building', `🔗 GitHub Actions URL: ${result.url}`, 1500);
+
+    // 2. 진행상황 폴링
+    const pollInterval = 10000; // 10초마다 폴링
+    let previousJobStatuses = {};
+
+    const pollStatus = async () => {
+      try {
+        const status = await githubService.getWorkflowStatus(result.runId);
+
+        // Job별 상태 변화 감지 및 로그 전송
+        for (const job of status.jobs) {
+          const jobKey = job.name;
+          const currentStatus = `${job.status}-${job.conclusion}`;
+
+          if (previousJobStatuses[jobKey] !== currentStatus) {
+            let emoji = '⏳';
+            let message = `${job.name}: ${job.status}`;
+
+            if (job.status === 'completed') {
+              if (job.conclusion === 'success') {
+                emoji = '✅';
+                message = `${job.name}: 성공`;
+              } else if (job.conclusion === 'failure') {
+                emoji = '❌';
+                message = `${job.name}: 실패`;
+              }
+            } else if (job.status === 'in_progress') {
+              emoji = '🔄';
+              message = `${job.name}: 진행 중...`;
+            }
+
+            emitLog(deployId, 'deploying', `${emoji} ${message}`, 0);
+            previousJobStatuses[jobKey] = currentStatus;
+          }
+        }
+
+        // 3. 배포 완료 확인
+        if (status.status === 'completed') {
+          if (status.conclusion === 'success') {
+            // 배포 성공
+            emitLog(deployId, 'done', '✅ 배포 성공!', 1000);
+
+            // 서비스 정보 조회
+            const serviceInfo = await githubService.getDeploymentServiceInfo(result.runId);
+            emitLog(deployId, 'AI_INSIGHT', `🌐 서비스 URL: ${serviceInfo.url}`, 1500);
+
+            await plantRef.update({
+              status: 'HEALTHY',
+              plantType: 'rose',
+              deploymentUrl: serviceInfo.url,
+              githubRunId: result.runId,
+              githubRunUrl: result.url,
+              updatedAt: new Date()
+            });
+          } else {
+            // 배포 실패
+            emitLog(deployId, 'AI_INSIGHT', `❌ 배포 실패: ${status.conclusion}`, 1000);
+            await plantRef.update({
+              status: 'ERROR',
+              plantType: 'pot',
+              githubRunId: result.runId,
+              githubRunUrl: result.url,
+              updatedAt: new Date()
+            });
+          }
+
+          clearInterval(pollTimer);
+        }
+      } catch (error) {
+        console.error('폴링 중 오류:', error);
+        emitLog(deployId, 'AI_INSIGHT', `⚠️  상태 확인 중 오류 발생: ${error.message}`, 0);
+      }
+    };
+
+    // 주기적으로 상태 확인
+    const pollTimer = setInterval(pollStatus, pollInterval);
+
+    // 첫 상태 확인
+    setTimeout(pollStatus, 3000);
+
+  } catch (error) {
+    console.error('GitHub Actions 배포 오류:', error);
+    emitLog(deployId, 'AI_INSIGHT', `🚨 배포 트리거 실패: ${error.message}`, 1000);
+    await plantRef.update({
+      status: 'ERROR',
+      plantType: 'pot',
+      updatedAt: new Date()
+    });
+  }
 }
 
 // (★★★★★ 수정 ★★★★★: run... Deploy/Rollback - Firestore 업데이트)
