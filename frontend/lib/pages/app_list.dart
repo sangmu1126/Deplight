@@ -19,7 +19,7 @@ class ShelfPage extends StatefulWidget {
   final UserData? userData;
   final IO.Socket socket;
   final List<dynamic> workspaces; // (TopBar용 - 현재는 사용 안함)
-  final Function(String, String) onCreateWorkspace; // (TopBar용)
+  final VoidCallback onCreateWorkspace;
 
   const ShelfPage({
     Key? key,
@@ -132,7 +132,7 @@ class _ShelfPageState extends State<ShelfPage> {
                 ? Center(child: Text('앱이 없습니다. "새 앱 배포"를 눌러 시작하세요.'))
                 : GridView.builder(
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4, // 4열 그리드
+                crossAxisCount: 3, // 4열 그리드
                 crossAxisSpacing: 24, // 가로 간격
                 mainAxisSpacing: 24, // 세로 간격
                 childAspectRatio: 1.4, // 카드 종횡비 (조절 필요)
@@ -160,7 +160,6 @@ class _ShelfPageState extends State<ShelfPage> {
 class _AppDashboardCard extends StatelessWidget {
   final Plant plant;
   final VoidCallback onTap;
-  // final VoidCallback onWakeUp; (추후 구현)
 
   const _AppDashboardCard({
     Key? key,
@@ -168,67 +167,112 @@ class _AppDashboardCard extends StatelessWidget {
     required this.onTap,
   }) : super(key: key);
 
+  // --- 1. 색상 및 스타일 정의 (이미지 기준) ---
+
+  // 로고 배경 (보라색 그라데이션)
+  static const Color _logoBgStart = Color(0xFF7B61FF);
+  static const Color _logoBgEnd = Color(0xFF673AB7);
+
+  // 텍스트
+  static const Color _mainTextColor = Color(0xFF111827);
+  static const Color _subTextColor = Color(0xFF6B7280);
+  static const Color _metricsLabelColor = Color(0xFF4B5563);
+
+  // 상태 (정상)
+  static const Color _statusGreenBg = Color(0xFFE6F9F0);
+  static const Color _statusGreenText = Color(0xFF00B894);
+
+  // 프로그레스 바
+  static const Color _cpuBarColor = Color(0xFF4F46E5);
+  static const Color _memBarColor = Color(0xFF10B981);
+  static const Color _barBgColor = Color(0xFFE5E7EB);
+
+  // 텍스트 스타일
+  static const TextStyle _appNameStyle = TextStyle(
+    fontSize: 18, fontWeight: FontWeight.bold, color: _mainTextColor,
+  );
+  static const TextStyle _urlStyle = TextStyle(
+    fontSize: 14, color: _subTextColor,
+  );
+  static const TextStyle _statusStyle = TextStyle(
+    fontSize: 13, fontWeight: FontWeight.bold, color: _statusGreenText,
+  );
+  static const TextStyle _timeAgoStyle = TextStyle(
+    fontSize: 14, color: _subTextColor,
+  );
+  static const TextStyle _metricsLabelStyle = TextStyle(
+    fontSize: 14, color: _metricsLabelColor, fontWeight: FontWeight.w500,
+  );
+  static const TextStyle _metricsPercentStyle = TextStyle(
+    fontSize: 14, fontWeight: FontWeight.bold, color: _mainTextColor,
+  );
+
+  // --- 2. 메인 Build 함수 ---
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 2,
+      elevation: 1.5, // (약간의 그림자)
       shadowColor: Colors.black.withOpacity(0.05),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16.0), // (이미지와 동일한 둥근 모서리)
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16.0),
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1. 카드 헤더 (아이콘, 이름, URL)
-              _buildCardHeader(context, plant),
-              SizedBox(height: 16),
-              // 2. 상태에 따른 본문
-              Expanded(child: _buildCardBody(context, plant)),
-            ],
-          ),
+          padding: const EdgeInsets.all(20.0), // (카드 내부 여백)
+          // (수정)
+          // 기존 Column 구조 대신, 상태에 따라 다른 Body를 그리도록
+          // _buildCardBody에서 모든 것을 처리합니다.
+          child: _buildCardBody(context, plant),
         ),
       ),
     );
   }
 
-  // 카드 헤더 (아이콘, 이름, URL)
-  Widget _buildCardHeader(BuildContext context, Plant plant) {
-    final theme = Theme.of(context);
+  // --- 3. (신규) 카드 헤더 (로고, 앱 이름, URL) ---
+  // (이전 코드의 _buildCardHeader를 이 코드로 대체)
+  Widget _buildCardHeader() {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 아이콘
+        // --- 로고 ---
         Container(
-          width: 40,
-          height: 40,
+          width: 48,
+          height: 48,
           decoration: BoxDecoration(
-            color: Color(0xFFF0F4FF), // 연한 보라색 배경
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10.0),
+            gradient: const LinearGradient(
+              colors: [_logoBgStart, _logoBgEnd],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
           ),
-          child: Icon(Icons.desktop_windows, color: Color(0xFF678AFB)), //
+          child: Center(
+            child: Image.asset(
+              'assets/plant.png', // (사용자가 요청한 경로)
+              color: Colors.white,
+              width: 28,
+              height: 28,
+            ),
+          ),
         ),
-        SizedBox(width: 12),
-        // 이름, URL
+        const SizedBox(width: 12),
+        // --- 앱 이름, URL ---
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                plant.name,
-                style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                plant.name, // "Frontend App"
+                style: _appNameStyle,
               ),
-              SizedBox(height: 2),
+              const SizedBox(height: 4),
               Text(
-                plant.githubUrl,
-                style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
-                maxLines: 1,
+                plant.githubUrl, // "https://github.com/company/f..."
+                style: _urlStyle,
                 overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
             ],
           ),
@@ -237,90 +281,67 @@ class _AppDashboardCard extends StatelessWidget {
     );
   }
 
-  // 카드 본문 (상태에 따라 분기)
-  Widget _buildCardBody(BuildContext context, Plant plant) {
-    // "2시간 전" 계산
-    final String timeAgo = timeago.format(plant.lastDeployedAt.toDate(), locale: 'ko');
-
-    switch (plant.status) {
-      case 'HEALTHY': // "정상" 상태
-      case 'NORMAL':
-      // (수정) 0.0 ~ 1.0 사이의 비율로 정규화
-      // ⚠️ 중요: plant.cpuLimit, plant.memLimit 필드명은
-      //           실제 Plant 모델에 맞게 수정해야 합니다.
-
-      // 1. 0으로 나누기 방지를 위해 기본값(1.0) 설정
-      //   final double cpuLimit = plant.cpuLimit ?? 1.0;
-      //   final double memLimit = plant.memLimit ?? 1.0;
-
-        // 2. 0으로 나누기 방지 로직 추가
-      final double cpuPercent = plant.cpuUsage / 100.0;
-      final double memPercent = plant.memUsage / 100.0;
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildStatusChip(Icons.check_circle, "정상", Color(0xFF00B894)),
-            SizedBox(height: 4),
-            Text(timeAgo, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
-            Spacer(),
-            // (수정) 정규화된 비율(percent)을 전달
-            _buildProgressBar("CPU", cpuPercent, Color(0xFF678AFB)),
-            SizedBox(height: 8),
-            _buildProgressBar("메모리", memPercent, Color(0xFF00B894)),
-          ],
-        );
-      case 'SLEEPING': // "겨울잠" 상태
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildStatusChip(Icons.pause_circle_outline, "겨울잠", Color(0xFFFDCB6E)),
-            SizedBox(height: 4),
-            Text(timeAgo, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
-            Spacer(),
-            Text("앱이 겨울잠 상태입니다", style: TextStyle(color: Colors.grey[600])),
-            SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () { /* 깨우기 로직 (onPlantTap으로 대체) */ },
-              child: Text("깨우기"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFFF0F4FF),
-                foregroundColor: Color(0xFF678AFB),
-                elevation: 0,
-              ),
-            )
-          ],
-        );
-      case 'DEPLOYING': // "배포중" 상태
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildStatusChip(Icons.sync, "배포중", Color(0xFF678AFB)),
-            SizedBox(height: 4),
-            Text("배포중...", style: TextStyle(color: Colors.grey[500], fontSize: 12)),
-            Spacer(),
-            LinearProgressIndicator(color: Color(0xFF678AFB)),
-            SizedBox(height: 4),
-            Text("배포가 진행 중입니다...", style: TextStyle(color: Colors.grey[600])),
-          ],
-        );
-      case 'FAILED': // "오류" 상태
-      default:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildStatusChip(Icons.error, "오류", Color(0xFFD63031)),
-            SizedBox(height: 4),
-            Text(timeAgo, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
-            Spacer(),
-            Text("배포에 실패했습니다.", style: TextStyle(color: Color(0xFFD63031))),
-            // (오류 로그 등 추가 정보)
-          ],
-        );
-    }
+  // --- 4. (신규) 상태 칩 (정상, 시간) ---
+  Widget _buildStatusRow(String timeAgo) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        // --- 상태 칩 ---
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
+          decoration: BoxDecoration(
+            color: _statusGreenBg,
+            borderRadius: BorderRadius.circular(20.0),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.check_circle, color: _statusGreenText, size: 16),
+              const SizedBox(width: 6),
+              Text("정상", style: _statusStyle),
+            ],
+          ),
+        ),
+        // --- 시간 ---
+        Text(timeAgo, style: _timeAgoStyle),
+      ],
+    );
   }
 
-  // (Helper) 상태 칩
+  // --- 5. (신규) 프로그레스 바 (CPU, 메모리) ---
+  // (이전 코드의 _buildProgressBar를 이 코드로 대체)
+  Widget _buildMetricsProgressBar({
+    required String label,
+    required double percent,
+    required Color color,
+  }) {
+    final double clampedPercent = percent.clamp(0.0, 1.0);
+
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: _metricsLabelStyle),
+            Text(
+              "${(clampedPercent * 100).toInt()}%",
+              style: _metricsPercentStyle,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        LinearPercentIndicator(
+          percent: clampedPercent,
+          lineHeight: 10.0,
+          backgroundColor: _barBgColor,
+          progressColor: color,
+          barRadius: const Radius.circular(10.0),
+          padding: EdgeInsets.zero,
+        ),
+      ],
+    );
+  }
+
+  // --- 6. (유지) 다른 상태(SLEEPING 등)를 위한 기존 상태 칩 ---
   Widget _buildStatusChip(IconData icon, String label, Color color) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -339,33 +360,96 @@ class _AppDashboardCard extends StatelessWidget {
     );
   }
 
-  // (Helper) 프로그레스 바
-  Widget _buildProgressBar(String label, double percent, Color color) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-        SizedBox(height: 4),
-        Row(
+  // --- 7. (수정) 카드 본문 (모든 로직 통합) ---
+  // (이전 코드의 _buildCardBody를 이 코드로 대체)
+  Widget _buildCardBody(BuildContext context, Plant plant) {
+    final String timeAgo = timeago.format(plant.lastDeployedAt.toDate(), locale: 'ko');
+
+    switch (plant.status) {
+    // --- (수정) HEALTHY/NORMAL일 때 신규 디자인 사용 ---
+      case 'HEALTHY':
+      case 'NORMAL':
+        final double cpuPercent = plant.cpuUsage / 100.0;
+        final double memPercent = plant.memUsage / 100.0;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: LinearPercentIndicator(
-                percent: percent,
-                lineHeight: 8,
-                backgroundColor: Colors.grey[200],
-                progressColor: color,
-                barRadius: Radius.circular(4),
-                padding: EdgeInsets.zero,
-              ),
+            _buildCardHeader(), // 신규 헤더
+            const SizedBox(height: 16),
+            _buildStatusRow(timeAgo), // 신규 상태 로우
+            const SizedBox(height: 20),
+            _buildMetricsProgressBar( // 신규 프로그레스 바
+              label: "CPU",
+              percent: cpuPercent,
+              color: _cpuBarColor,
             ),
-            SizedBox(width: 8),
-            Text(
-              "${(percent * 100).toInt()}%",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            const SizedBox(height: 16),
+            _buildMetricsProgressBar( // 신규 프로그레스 바
+              label: "메모리",
+              percent: memPercent,
+              color: _memBarColor,
             ),
           ],
-        ),
-      ],
-    );
+        );
+
+    // --- (유지) SLEEPING일 때 기존 디자인 사용 ---
+      case 'SLEEPING':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildCardHeader(), // 헤더만 신규 디자인으로 교체
+            SizedBox(height: 16),
+            _buildStatusChip(Icons.pause_circle_outline, "겨울잠", Color(0xFFFDCB6E)),
+            SizedBox(height: 4),
+            Text(timeAgo, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+            Spacer(),
+            Text("앱이 겨울잠 상태입니다", style: TextStyle(color: Colors.grey[600])),
+            SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: () { /* 깨우기 로직 (onPlantTap으로 대체) */ },
+              child: Text("깨우기"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFFF0F4FF),
+                foregroundColor: Color(0xFF678AFB),
+                elevation: 0,
+              ),
+            )
+          ],
+        );
+
+    // --- (유지) DEPLOYING일 때 기존 디자인 사용 ---
+      case 'DEPLOYING':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildCardHeader(), // 헤더만 신규 디자인으로 교체
+            SizedBox(height: 16),
+            _buildStatusChip(Icons.sync, "배포중", Color(0xFF678AFB)),
+            SizedBox(height: 4),
+            Text("배포중...", style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+            Spacer(),
+            LinearProgressIndicator(color: Color(0xFF678AFB)),
+            SizedBox(height: 4),
+            Text("배포가 진행 중입니다...", style: TextStyle(color: Colors.grey[600])),
+          ],
+        );
+
+    // --- (유지) FAILED일 때 기존 디자인 사용 ---
+      case 'FAILED':
+      default:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildCardHeader(), // 헤더만 신규 디자인으로 교체
+            SizedBox(height: 16),
+            _buildStatusChip(Icons.error, "오류", Color(0xFFD63031)),
+            SizedBox(height: 4),
+            Text(timeAgo, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+            Spacer(),
+            Text("배포에 실패했습니다.", style: TextStyle(color: Color(0xFFD63031))),
+          ],
+        );
+    }
   }
 }
