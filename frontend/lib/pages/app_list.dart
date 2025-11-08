@@ -131,21 +131,25 @@ class _ShelfPageState extends State<ShelfPage> {
             child: shelf.isEmpty
                 ? Center(child: Text('앱이 없습니다. "새 앱 배포"를 눌러 시작하세요.'))
                 : GridView.builder(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3, // 4열 그리드
+
+              // (수정)
+              // 고정된 4열 그리드 대신, 반응형 그리드로 교체
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                // (핵심) 각 카드의 최대 너비를 400px 정도로 제한
+                maxCrossAxisExtent: 400,
+
                 crossAxisSpacing: 24, // 가로 간격
                 mainAxisSpacing: 24, // 세로 간격
-                childAspectRatio: 1.4, // 카드 종횡비 (조절 필요)
+
+                //  childAspectRatio는 그대로 유지
+                childAspectRatio: 1.4,
               ),
               itemCount: shelf.length,
               itemBuilder: (context, index) {
                 final plant = shelf[index];
-                // (신규) 앱 대시보드 카드 위젯 사용
                 return _AppDashboardCard(
                   plant: plant,
                   onTap: () => widget.onPlantTap(plant),
-                  // "깨우기" 버튼 등 카드 내부 액션 (추후 구현)
-                  // onWakeUp: () => ...
                 );
               },
             ),
