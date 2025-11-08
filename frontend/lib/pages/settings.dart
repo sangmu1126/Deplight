@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/secretKey_dialog.dart';
+
 class SettingsPage extends StatelessWidget {
   // (★★★★★) app_core의 body를 교체하기 위한 콜백
   // 이미지의 "프로필로 돌아가기" 버튼에 연결됩니다.
@@ -297,16 +299,44 @@ class SettingsPage extends StatelessWidget {
                 ],
               ),
               ElevatedButton.icon(
-                onPressed: () {},
-                icon: Icon(Icons.add, size: 18),
-                label: Text("새 Secret 추가"),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (BuildContext dialogContext) {
+                      return NewSecretDialog(
+                        onSecretAdded: (name, value, description) {
+                          // (콜백) 여기서 Secret 추가 로직 실행
+                          print("새 Secret 추가됨:");
+                          print("Name: $name");
+                          print("Value: $value");
+                          print("Desc: $description");
+
+                          // 예: appState.addSecret(name, value, description);
+                        },
+                      );
+                    },
+                  );
+                },
+                // (수정) Text 대신 Icon과 Label을 사용합니다.
+                icon: const Icon(Icons.add, size: 18), // 아이콘
+                label: const Text(
+                  "새 Secret 추가", // 텍스트
+                  style: TextStyle(
+                    fontSize: 16, // (크기)
+                    fontWeight: FontWeight.w500, // (굵기)
+                  ),
+                ),
+                // (수정) 이미지와 100% 동일한 스타일입니다.
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _primaryColor,
+                  backgroundColor: const Color(0xFF60A5FA),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  elevation: 0,
                 ),
-              ),
+              )
             ],
           ),
           const SizedBox(height: 16),
