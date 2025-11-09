@@ -8,6 +8,7 @@ import '../models/plant_model.dart';
 import '../models/logEntry_model.dart';
 import '../models/user_data.dart';
 import '../widgets/rollback_dialog.dart';
+import '../widgets/deploy_modal.dart';
 
 
 class DeploymentPage extends StatefulWidget {
@@ -99,12 +100,18 @@ class _DeploymentPageState extends State<DeploymentPage> {
 
     widget.socket.on('status-update', _onStatusUpdate);
     widget.socket.on('new-log', _onNewLog);
+    widget.socket.on('deployment-metrics', _onDeploymentMetrics);
     _toggleMetricsListeners(true);
 
     widget.socket.emit('get-logs-for-plant', plant.id);
 
-    cpuData = _getDummyChartData(40, 75);
-    memData = _getDummyChartData(30, 55);
+    // Request real CloudWatch metrics from backend
+    if (plant.runId != null) {
+      widget.socket.emit('get-deployment-metrics', {'runId': plant.runId});
+    }
+
+    cpuData = [FlSpot(0, 0)];
+    memData = [FlSpot(0, 0)];
   }
 
   @override
@@ -112,6 +119,7 @@ class _DeploymentPageState extends State<DeploymentPage> {
     _logScrollController.dispose();
     widget.socket.off('status-update', _onStatusUpdate);
     widget.socket.off('new-log', _onNewLog);
+    widget.socket.off('deployment-metrics', _onDeploymentMetrics);
     _toggleMetricsListeners(false);
     super.dispose();
   }
@@ -166,6 +174,22 @@ class _DeploymentPageState extends State<DeploymentPage> {
     });
   }
 
+  // "재배포" 버튼 클릭 시 이 함수 호출
+  void _showDeployModal(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return DeployModal(
+          plant: widget.plant,
+          socket: widget.socket,
+          currentUser: widget.currentUser,
+          workspaceId: widget.workspaceId,
+        );
+      },
+    );
+  }
+
   // --- 소켓 리스너 ---
   void _onStatusUpdate(dynamic data) {
     if (!mounted || data['id'] != plant.id) return;
@@ -193,7 +217,10 @@ class _DeploymentPageState extends State<DeploymentPage> {
     if (!mounted) return;
     setState(() {
       double cpu = data['cpu'].toDouble();
-      double mem = data['mem'].toDouble();
+      double memRaw = data['mem'].toDouble();
+      // Normalize memory from MB (~140) to percentage (0-100)
+      // Assuming 256MB container limit, divide by 2.56
+      double mem = memRaw / 2.56;
       currentMetrics = {'cpu': cpu, 'mem': mem};
       plant.cpuUsage = cpu / 100.0;
       plant.memUsage = mem / 100.0;
@@ -203,6 +230,57 @@ class _DeploymentPageState extends State<DeploymentPage> {
       if (cpuData.length > 20) cpuData.removeAt(0);
       if (memData.length > 20) memData.removeAt(0);
       _timeCounter += 1.0;
+    });
+  }
+
+  void _onDeploymentMetrics(dynamic data) {
+    if (!mounted) return;
+
+    print('Received CloudWatch metrics: $data');
+
+    if (data['error'] != null) {
+      print('Error fetching metrics: ${data['error']}');
+      return;
+    }
+
+    setState(() {
+      final metrics = data['metrics'];
+
+      if (metrics != null) {
+        // Process CPU metrics
+        if (metrics['cpu'] != null && metrics['cpu'].length > 0) {
+          cpuData = List<FlSpot>.from(
+            (metrics['cpu'] as List).map((point) =>
+              FlSpot(point['x'].toDouble(), point['y'].toDouble())
+            )
+          );
+        }
+
+        // Process Memory metrics
+        if (metrics['memory'] != null && metrics['memory'].length > 0) {
+          memData = List<FlSpot>.from(
+            (metrics['memory'] as List).map((point) =>
+              FlSpot(point['x'].toDouble(), point['y'].toDouble())
+            )
+          );
+        }
+
+        // Update current usage from latest data points
+        if (cpuData.isNotEmpty) {
+          plant.cpuUsage = cpuData.last.y / 100.0;
+          currentMetrics['cpu'] = cpuData.last.y;
+        }
+        if (memData.isNotEmpty) {
+          plant.memUsage = memData.last.y / 100.0;
+          currentMetrics['mem'] = memData.last.y;
+        }
+      }
+
+      // Update task status if available
+      final taskStatus = data['taskStatus'];
+      if (taskStatus != null) {
+        print('Task status: ${taskStatus['status']}, Health: ${taskStatus['healthStatus']}');
+      }
     });
   }
 
@@ -513,9 +591,9 @@ class _DeploymentPageState extends State<DeploymentPage> {
           _buildCardHeader("배포 정보"),
           const SizedBox(height: 16),
           _buildInfoRow("마지막 배포", DateFormat('yy-MM-dd HH:mm').format(plant.lastDeployedAt.toDate())),
-          _buildInfoRow("배포 환경", plant.plantType == 'pot' ? "Development" : "Production"), // 예시
-          _buildInfoRow("인스턴스", "2개"),
-          _buildInfoRow("리전", "Asia-Northeast1"),
+          _buildInfoRow("배포 환경", plant.plantType == 'pot' ? "Development" : "Production"),
+          _buildInfoRow("ECS 클러스터", "delightful-deploy-cluster"),
+          _buildInfoRow("리전", "ap-northeast-2 (Seoul)"),
           // (수정) 정보와 버튼 사이 간격 추가
           const SizedBox(height: 24),
 
@@ -525,9 +603,7 @@ class _DeploymentPageState extends State<DeploymentPage> {
             children: [
               // 1. 재배포 버튼
               ElevatedButton(
-                onPressed: () {
-                  /* TODO: 재배포 로직 */
-                },
+                onPressed: () => _showDeployModal(context),
                 style: redeployButtonStyle,
                 child: const Text("재배포", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               ),
@@ -559,6 +635,33 @@ class _DeploymentPageState extends State<DeploymentPage> {
 
   // (3-1) 실시간 메트릭 카드
   Widget _buildMetricsChart() {
+    // Calculate dynamic axis ranges based on actual data
+    double minX = 0;
+    double maxX = 20;
+    double minY = 0;
+    double maxY = 100;
+
+    if (cpuData.isNotEmpty || memData.isNotEmpty) {
+      final allSpots = [...cpuData, ...memData];
+      if (allSpots.isNotEmpty) {
+        minX = allSpots.map((s) => s.x).reduce((a, b) => a < b ? a : b);
+        maxX = allSpots.map((s) => s.x).reduce((a, b) => a > b ? a : b);
+
+        // Add padding to X axis
+        final xRange = maxX - minX;
+        if (xRange < 10) {
+          maxX = minX + 10;
+        }
+
+        // For Y axis, use 0-100 for percentage values
+        final allYValues = allSpots.map((s) => s.y).toList();
+        final maxYValue = allYValues.reduce((a, b) => a > b ? a : b);
+
+        // Set maxY to at least 100, or higher if data exceeds that
+        maxY = maxYValue > 100 ? ((maxYValue / 20).ceil() * 20).toDouble() : 100;
+      }
+    }
+
     return _buildBaseCard(
       child: Column(
         children: [
@@ -566,78 +669,73 @@ class _DeploymentPageState extends State<DeploymentPage> {
           const SizedBox(height: 32),
           Container(
             height: 310, // (로그 카드와 높이 맞춤)
-            child: LineChart(
-              LineChartData(
-                lineTouchData: LineTouchData(enabled: false),
-                clipData: FlClipData.all(),
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  getDrawingHorizontalLine: (value) {
-                    return FlLine(color: _borderColor, strokeWidth: 1);
-                  },
-                ),
-                titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 28,
-                      interval: 20,
-                      getTitlesWidget: (value, meta) {
-                        if (value % 20 == 0) {
-                          return Text(
-                            value.toInt().toString(),
-                            style: TextStyle(color: _subTextColor, fontSize: 12),
-                            textAlign: TextAlign.right,
-                          );
-                        }
-                        return Container();
+            child: cpuData.isEmpty && memData.isEmpty
+              ? Center(
+                  child: Text(
+                    '메트릭 데이터를 불러오는 중...',
+                    style: TextStyle(color: _subTextColor, fontSize: 14),
+                  ),
+                )
+              : LineChart(
+                  LineChartData(
+                    lineTouchData: LineTouchData(enabled: false),
+                    clipData: FlClipData.all(),
+                    gridData: FlGridData(
+                      show: true,
+                      drawVerticalLine: false,
+                      getDrawingHorizontalLine: (value) {
+                        return FlLine(color: _borderColor, strokeWidth: 1);
                       },
                     ),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 22,
-                      interval: 4,
-                      getTitlesWidget: (value, meta) {
-                        String text;
-                        switch (value.toInt()) {
-                          case 0: text = '00:00'; break;
-                          case 4: text = '04:00'; break;
-                          case 8: text = '08:00'; break;
-                          case 12: text = '12:00'; break;
-                          case 16: text = '16:00'; break;
-                          case 20: text = '20:00'; break;
-                          case 24: text = '24:00'; break;
-                          default: return Container();
-                        }
-                        return Text(
-                          text,
-                          style: TextStyle(color: _subTextColor, fontSize: 12),
-                        );
-                      },
+                    titlesData: FlTitlesData(
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 40,
+                          interval: maxY / 5,
+                          getTitlesWidget: (value, meta) {
+                            return Text(
+                              '${value.toInt()}%',
+                              style: TextStyle(color: _subTextColor, fontSize: 12),
+                              textAlign: TextAlign.right,
+                            );
+                          },
+                        ),
+                      ),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 22,
+                          interval: (maxX - minX) / 5,
+                          getTitlesWidget: (value, meta) {
+                            // Show relative time points
+                            final relativeMinutes = ((value - minX) * 5).toInt();
+                            return Text(
+                              '${relativeMinutes}m',
+                              style: TextStyle(color: _subTextColor, fontSize: 12),
+                            );
+                          },
+                        ),
+                      ),
+                      topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                     ),
+                    borderData: FlBorderData(
+                      show: true,
+                      border: Border(
+                        bottom: BorderSide(color: _borderColor, width: 1),
+                      ),
+                    ),
+                    minX: minX,
+                    maxX: maxX,
+                    minY: minY,
+                    maxY: maxY,
+                    lineBarsData: [
+                      if (cpuData.isNotEmpty) _buildLineChartData(cpuData, _primaryColor),
+                      if (memData.isNotEmpty) _buildLineChartData(memData, _memColor),
+                    ],
                   ),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
-                borderData: FlBorderData(
-                  show: true,
-                  border: Border(
-                    bottom: BorderSide(color: _borderColor, width: 1),
-                  ),
-                ),
-                minX: 0,
-                maxX: 24,
-                minY: 0,
-                maxY: 80,
-                lineBarsData: [
-                  _buildLineChartData(cpuData, _primaryColor),
-                  _buildLineChartData(memData, _memColor),
-                ],
-              ),
-            ),
           ),
         ],
       ),

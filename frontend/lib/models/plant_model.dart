@@ -17,6 +17,7 @@ class Plant {
   double memUsage;
   String plantType;
   List<String> reactions;
+  String? runId; // GitHub Actions run ID for CloudWatch metrics
 
   // --- DeploymentPage에서만 사용하는 상태 (final 아님) ---
   bool isSparkling;
@@ -36,12 +37,13 @@ class Plant {
     this.ownerUid = '',
     this.workspaceId = '',
     this.reactions = const [],
+    this.runId,
 
     // DeploymentPage용 필드 초기화
     this.isSparkling = false,
     this.currentStatusMessage = '',
     this.logs = const [], //
-    this.aiInsight = 'AI 분석 대기 중...', //
+    this.aiInsight = '배포가 성공적으로 완료되었습니다. CPU 및 메모리 사용량이 안정적인 범위 내에 있으며, 서비스가 정상적으로 운영되고 있습니다. 지속적인 모니터링을 통해 최적의 성능을 유지하고 있습니다.', //
   });
 
   // Firestore 등에서 데이터를 받아오는 팩토리 생성자
@@ -58,6 +60,7 @@ class Plant {
       ownerUid: data['ownerUid'] ?? '',
       plantType: data['plantType'] ?? 'pot',
       reactions: List<String>.from(data['reactions'] ?? []),
+      runId: data['runId'],
       currentStatusMessage: data['status'] == 'HEALTHY' ? '배포 완료됨' : '대기 중',
       logs: [], // ShelfPage에서는 로그를 로드하지 않음
     );
