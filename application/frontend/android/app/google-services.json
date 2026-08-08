@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "82312839239",
+    "project_id": "deplight-softbank",
+    "storage_bucket": "deplight-softbank.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:82312839239:android:89abba52bc8137d43a7162",
+        "android_client_info": {
+          "package_name": "com.deplight.frontend"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "82312839239-6ivee753j49gt0155h2kmi3cj55is3lm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDtj-ovIZO1uDOzUuQUYIBLLwKE_DyntlM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "82312839239-6ivee753j49gt0155h2kmi3cj55is3lm.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
