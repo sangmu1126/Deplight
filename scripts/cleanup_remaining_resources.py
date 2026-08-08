@@ -3,8 +3,8 @@
 import boto3
 import time
 
-AWS_ACCESS_KEY = "AKIAXPBPUMIXA5RFKXUR"
-AWS_SECRET_KEY = "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"
+AWS_ACCESS_KEY = ""
+AWS_SECRET_KEY = ""
 AWS_REGION = "ap-northeast-2"
 
 session = boto3.Session(

@@ -8,8 +8,8 @@ import os
 from botocore.exceptions import ClientError
 
 # mango_sb 계정 자격증명
-AWS_ACCESS_KEY = "AKIAXPBPUMIXA5RFKXUR"
-AWS_SECRET_KEY = "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"
+AWS_ACCESS_KEY = ""
+AWS_SECRET_KEY = ""
 AWS_REGION = "ap-northeast-2"
 
 # boto3 클라이언트 초기화
