@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, RotateCcw, Rocket, Globe, Activity } from 'lucide-react';
 import MetricsChart from '../components/MetricsChart';
 import type { Plant } from '../components/AppCard';
+import type { Socket } from 'socket.io-client';
 import './Deployment.css';
 
 interface DeploymentProps {
   plant: Plant;
   onBack: () => void;
+  socket: Socket | null;
 }
 
 interface LogEntry {
@@ -16,64 +18,70 @@ interface LogEntry {
   status: string;
 }
 
-const Deployment = ({ plant, onBack }: DeploymentProps) => {
+const Deployment = ({ plant, onBack, socket }: DeploymentProps) => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [cpuData, setCpuData] = useState<{time: string, cpu: number}[]>([]);
   const [memData, setMemData] = useState<{time: string, mem: number}[]>([]);
+  const [currentPlant, setCurrentPlant] = useState<Plant>(plant);
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const timeCounterRef = useRef(1);
 
-  // Mock real-time data generation
   useEffect(() => {
-    // Generate initial chart data
-    const now = new Date();
-    const initialCpu = Array.from({length: 20}).map((_, i) => ({
-      time: new Date(now.getTime() - (20 - i) * 2000).toLocaleTimeString([], {hour12: false, second: '2-digit', minute: '2-digit'}),
-      cpu: Math.random() * 20 + 5
-    }));
-    const initialMem = Array.from({length: 20}).map((_, i) => ({
-      time: new Date(now.getTime() - (20 - i) * 2000).toLocaleTimeString([], {hour12: false, second: '2-digit', minute: '2-digit'}),
-      mem: Math.random() * 30 + 40
-    }));
-    
-    setCpuData(initialCpu);
-    setMemData(initialMem);
+    if (!socket) return;
 
-    // Initial Logs
-    setLogs([
-      { id: '1', time: now.toLocaleTimeString(), message: 'System initialized. Fetching deployment state...', status: 'info' },
-      { id: '2', time: now.toLocaleTimeString(), message: `Connected to plant instance ${plant.id}`, status: 'success' },
-    ]);
+    const onStatusUpdate = (data: any) => {
+      if (data.id === currentPlant.id) {
+        setCurrentPlant(prev => ({ ...prev, status: data.status }));
+      }
+    };
 
-    // Interval for updates
-    const interval = setInterval(() => {
+    const onNewLog = (data: any) => {
+      if (data.id === currentPlant.id) {
+        setLogs(prev => {
+          const newLogs = [...prev, {
+            id: Date.now().toString(),
+            time: new Date(data.log.time || Date.now()).toLocaleTimeString(),
+            message: data.log.message,
+            status: data.log.status || 'info'
+          }];
+          return newLogs.slice(-200); // keep last 200 logs
+        });
+      }
+    };
+
+    const onMetricsUpdate = (data: any) => {
       const time = new Date().toLocaleTimeString([], {hour12: false, second: '2-digit', minute: '2-digit'});
       
       setCpuData(prev => {
-        const next = [...prev.slice(1), { time, cpu: Math.random() * 20 + (plant.status === 'DEPLOYING' ? 60 : 5) }];
-        return next;
+        const next = [...prev, { time, cpu: data.cpu }];
+        return next.slice(-20);
       });
       
       setMemData(prev => {
-        const next = [...prev.slice(1), { time, mem: Math.random() * 10 + (plant.status === 'DEPLOYING' ? 70 : 40) }];
-        return next;
+        const memPercent = (data.mem / 2.56); // Normalizing MB to %
+        const next = [...prev, { time, mem: memPercent }];
+        return next.slice(-20);
       });
+      
+      timeCounterRef.current += 1;
+    };
 
-      if (Math.random() > 0.7) {
-        setLogs(prev => {
-          const statuses = ['info', 'info', 'success', 'error', 'ai'];
-          const newLog = {
-            id: Date.now().toString(),
-            time: new Date().toLocaleTimeString(),
-            message: `[${plant.status}] Heartbeat check completed. Latency ${Math.floor(Math.random() * 50)}ms`,
-            status: statuses[Math.floor(Math.random() * statuses.length)]
-          };
-          return [...prev, newLog].slice(-100);
-        });
-      }
-    }, 2000);
+    socket.on('status-update', onStatusUpdate);
+    socket.on('new-log', onNewLog);
+    socket.on('metrics-update', onMetricsUpdate);
 
-    return () => clearInterval(interval);
-  }, [plant]);
+    // Initial requests
+    socket.emit('get-logs-for-plant', currentPlant.id);
+    
+    // In original code, runId is needed for metrics, mock it for now if missing
+    // socket.emit('get-deployment-metrics', { runId: currentPlant.runId });
+
+    return () => {
+      socket.off('status-update', onStatusUpdate);
+      socket.off('new-log', onNewLog);
+      socket.off('metrics-update', onMetricsUpdate);
+    };
+  }, [socket, currentPlant.id]);
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -87,13 +95,13 @@ const Deployment = ({ plant, onBack }: DeploymentProps) => {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="deployment-title">{plant.version}</h1>
+            <h1 className="deployment-title">{currentPlant.version}</h1>
             <div className="deployment-meta">
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Activity size={14} /> ID: {plant.id.substring(0, 8)}
+                <Activity size={14} /> ID: {currentPlant.id.substring(0, 8)}
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Globe size={14} /> {plant.gitUrl || 'N/A'}
+                <Globe size={14} /> {currentPlant.gitUrl || 'N/A'}
               </span>
             </div>
           </div>

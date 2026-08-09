@@ -1,93 +1,54 @@
 import { useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
 import { ServerCrash } from 'lucide-react';
 import AppCard, { type Plant } from '../components/AppCard';
+import type { Socket } from 'socket.io-client';
 import './Dashboard.css';
-
-const SOCKET_URL = import.meta.env.MODE === 'production' 
-  ? window.location.origin 
-  : 'http://localhost:8080';
 
 interface DashboardProps {
   onSelectPlant: (plant: Plant) => void;
+  socket: Socket | null;
+  workspaceId: string;
 }
 
-const Dashboard = ({ onSelectPlant }: DashboardProps) => {
+const Dashboard = ({ onSelectPlant, socket, workspaceId }: DashboardProps) => {
   const [plants, setPlants] = useState<Plant[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   
-  // Hardcoded for demo, normally fetched from auth/workspace selection
-  const WORKSPACE_ID = 'demo-workspace-123'; 
-  const FAKE_TOKEN = 'demo-token'; // In a real app, use Firebase auth token
 
   useEffect(() => {
-    // 1. Initialize Socket
-    const newSocket = io(SOCKET_URL, {
-      auth: { token: FAKE_TOKEN },
-      // Note: Backend might reject fake tokens if Firebase Admin is checking it strictly.
-      // For this UI demo, we'll gracefully handle connection errors or mock the data if needed.
-    });
+    if (!socket) return;
 
-    // 2. Set up listeners
-    newSocket.on('connect', () => {
-      console.log('Connected to server');
-      setIsConnected(true);
-      // Request to join workspace
-      newSocket.emit('join-workspace', WORKSPACE_ID);
-    });
+    const onConnect = () => setIsConnected(true);
+    const onDisconnect = () => setIsConnected(false);
 
-    newSocket.on('connect_error', (err) => {
-      console.error('Socket connection error:', err.message);
-      setIsConnected(false);
-      
-      // Fallback: load fake data so the UI is visible even without backend auth
-      setPlants([
-        {
-          id: '1',
-          version: 'Delightful App v1.0',
-          description: 'Next.js 블로그 애플리케이션',
-          status: 'HEALTHY',
-          updatedAt: new Date(),
-          gitUrl: 'https://github.com/Softbank-mango/blog',
-          plantType: 'rose'
-        },
-        {
-          id: '2',
-          version: 'Payment Service API',
-          description: '결제 모듈 마이크로서비스',
-          status: 'DEPLOYING',
-          updatedAt: new Date(Date.now() - 1000 * 60 * 5),
-          gitUrl: 'https://github.com/Softbank-mango/payments',
-          plantType: 'sunflower'
-        },
-        {
-          id: '3',
-          version: 'Legacy Admin Panel',
-          description: '구형 어드민 패널 (사용량 적음)',
-          status: 'SLEEPING',
-          updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24),
-          gitUrl: 'https://github.com/Softbank-mango/admin',
-          plantType: 'pot'
-        }
-      ]);
-    });
+    setIsConnected(socket.connected);
 
-    newSocket.on('current-shelf', (data: Plant[]) => {
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+
+    socket.on('current-shelf', (data: Plant[]) => {
       console.log('Received shelf data:', data);
       setPlants(data);
     });
 
-    newSocket.on('plant-update', (updatedData: { id: string, status: any, aiInsight?: string }) => {
+    socket.on('plant-update', (updatedData: { id: string, status: any, aiInsight?: string }) => {
       setPlants(prev => prev.map(p => 
         p.id === updatedData.id ? { ...p, status: updatedData.status } : p
       ));
     });
 
-    // 3. Cleanup
+    // Request initial data
+    if (socket.connected && workspaceId) {
+      socket.emit('get-current-shelf', workspaceId);
+    }
+
     return () => {
-      newSocket.disconnect();
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+      socket.off('current-shelf');
+      socket.off('plant-update');
     };
-  }, []);
+  }, [socket, workspaceId]);
 
   return (
     <div className="dashboard-container">
@@ -95,7 +56,7 @@ const Dashboard = ({ onSelectPlant }: DashboardProps) => {
         <div>
           <h1 className="dashboard-title">배포 현황</h1>
           <p className="dashboard-subtitle">
-            {isConnected ? '서버와 실시간 연동 중입니다.' : '서버 인증 대기 중 (UI 데모 데이터 표시)'}
+            {isConnected ? '서버와 실시간 연동 중입니다.' : '서버와 연결이 끊겼습니다.'}
           </p>
         </div>
         <button className="btn btn-primary">

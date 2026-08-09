@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { io, type Socket } from 'socket.io-client';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
@@ -8,10 +9,38 @@ import Deployment from './pages/Deployment';
 import type { Plant } from './components/AppCard';
 import './App.css';
 
+const SOCKET_URL = import.meta.env.MODE === 'production' 
+  ? window.location.origin 
+  : 'http://localhost:8080';
+
 function App() {
   const [authState, setAuthState] = useState<'login' | 'workspace' | 'app'>('login');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [workspaceId, setWorkspaceId] = useState<string>('');
+
+  useEffect(() => {
+    if (authState === 'app') {
+      const FAKE_TOKEN = 'demo-token'; // In a real app, use Firebase auth token
+      const newSocket = io(SOCKET_URL, {
+        auth: { token: FAKE_TOKEN },
+      });
+
+      newSocket.on('connect', () => {
+        console.log('Connected to server globally');
+        if (workspaceId) {
+          newSocket.emit('join-workspace', workspaceId);
+        }
+      });
+
+      setSocket(newSocket);
+
+      return () => {
+        newSocket.disconnect();
+      };
+    }
+  }, [authState, workspaceId]);
 
   // If not logged in
   if (authState === 'login') {
@@ -22,6 +51,7 @@ function App() {
   if (authState === 'workspace') {
     return <WorkspaceSelection onSelect={(id) => {
       console.log('Selected workspace:', id);
+      setWorkspaceId(id);
       setAuthState('app');
     }} />;
   }
@@ -42,11 +72,16 @@ function App() {
           <Deployment 
             plant={selectedPlant} 
             onBack={() => setSelectedPlant(null)} 
+            socket={socket}
           />
         ) : (
           <>
             {activeTab === 'dashboard' && (
-              <Dashboard onSelectPlant={(plant) => setSelectedPlant(plant)} />
+              <Dashboard 
+                onSelectPlant={(plant) => setSelectedPlant(plant)} 
+                socket={socket}
+                workspaceId={workspaceId}
+              />
             )}
             
             {activeTab === 'deploy' && (
