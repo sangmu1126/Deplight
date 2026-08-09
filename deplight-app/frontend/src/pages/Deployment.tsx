@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, RotateCcw, Rocket, Globe, Activity } from 'lucide-react';
+import { ArrowLeft, RefreshCw, ExternalLink, Download, Sprout, CheckCircle2, Moon, Loader2, AlertCircle, Bot } from 'lucide-react';
 import MetricsChart from '../components/MetricsChart';
 import type { Plant } from '../components/AppCard';
 import './Deployment.css';
@@ -16,12 +16,27 @@ interface LogEntry {
   status: string;
 }
 
+// 간단한 시간 변환 헬퍼 (예: "2시간 전")
+const timeAgo = (date: Date) => {
+  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+  let interval = seconds / 31536000;
+  if (interval > 1) return Math.floor(interval) + "년 전";
+  interval = seconds / 2592000;
+  if (interval > 1) return Math.floor(interval) + "개월 전";
+  interval = seconds / 86400;
+  if (interval > 1) return Math.floor(interval) + "일 전";
+  interval = seconds / 3600;
+  if (interval > 1) return Math.floor(interval) + "시간 전";
+  interval = seconds / 60;
+  if (interval > 1) return Math.floor(interval) + "분 전";
+  return "방금 전";
+};
+
 const Deployment = ({ plant, onBack }: DeploymentProps) => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [cpuData, setCpuData] = useState<{time: string, cpu: number}[]>([]);
   const [memData, setMemData] = useState<{time: string, mem: number}[]>([]);
   const [currentPlant, setCurrentPlant] = useState<Plant>(plant);
-  const [progress, setProgress] = useState(0);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,44 +53,31 @@ const Deployment = ({ plant, onBack }: DeploymentProps) => {
         if (!isMounted) return;
 
         if (data.success) {
-          // Update status
           if (data.status) {
-             // Basic mapping, could use mapper here if needed
              const newStatus = data.status === 'success' ? 'HEALTHY' : 
                                data.status === 'failed' ? 'ERROR' : 'DEPLOYING';
              setCurrentPlant(prev => prev.status !== newStatus ? { ...prev, status: newStatus } : prev);
           }
           
-          setProgress(data.progress || 0);
-
-          // Update logs if there are new ones
           if (data.logs && Array.isArray(data.logs)) {
              if (data.logs.length > lastLogCount) {
                const newLogs = data.logs.slice(lastLogCount).map((l: any, i: number) => ({
                  id: Date.now().toString() + i,
                  time: new Date(l.timestamp || Date.now()).toLocaleTimeString(),
                  message: l.message,
-                 status: l.type || 'info'
+                 status: l.type || 'log-info'
                }));
                setLogs(prev => [...prev, ...newLogs].slice(-200));
                lastLogCount = data.logs.length;
              }
           }
-
-          // Generate mock metrics for now, since FastAPI doesn't provide them yet
-          const time = new Date().toLocaleTimeString([], {hour12: false, second: '2-digit', minute: '2-digit'});
-          setCpuData(prev => [...prev, { time, cpu: Math.random() * 20 + 5 }].slice(-20));
-          setMemData(prev => [...prev, { time, mem: Math.random() * 30 + 40 }].slice(-20));
         }
       } catch (error) {
         console.error('Error polling deployment status:', error);
       }
     };
 
-    // Initial fetch
     fetchStatus();
-
-    // Poll every 3 seconds
     const interval = setInterval(fetchStatus, 3000);
 
     return () => {
@@ -84,63 +86,155 @@ const Deployment = ({ plant, onBack }: DeploymentProps) => {
     };
   }, [currentPlant.id]);
 
+  const [chartData, setChartData] = useState<{time: string, cpu: number, mem: number}[]>([]);
+
+  useEffect(() => {
+    // Generate mock metrics for the chart over time
+    const interval = setInterval(() => {
+      const time = new Date().toLocaleTimeString([], {hour12: false, second: '2-digit', minute: '2-digit'});
+      const cpu = Math.floor(Math.random() * 20 + 35);
+      const mem = Math.floor(Math.random() * 30 + 50);
+      setChartData(prev => [...prev, { time, cpu, mem }].slice(-20));
+      setCpuData(prev => [...prev, { time, cpu }].slice(-20)); // Keep for current values
+      setMemData(prev => [...prev, { time, mem }].slice(-20));
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
+  const statusConfig = {
+    HEALTHY: { label: '정상', icon: <CheckCircle2 size={14} />, className: 'status-healthy' },
+    SLEEPING: { label: '겨울잠', icon: <Moon size={14} />, className: 'status-sleeping' },
+    DEPLOYING: { label: '배포중', icon: <Loader2 size={14} className="animate-spin" />, className: 'status-deploying' },
+    ERROR: { label: '오류', icon: <AlertCircle size={14} />, className: 'status-error' }
+  };
+  const currentStatus = statusConfig[currentPlant.status];
+
+  // 더미 메트릭스 (현재 값)
+  const currentCpu = cpuData.length > 0 ? cpuData[cpuData.length - 1].cpu : 45;
+  const currentMem = memData.length > 0 ? memData[memData.length - 1].mem : 62;
+
   return (
-    <div className="deployment-container">
-      <div className="deployment-header">
-        <div className="deployment-title-group">
-          <button className="back-btn" onClick={onBack}>
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h1 className="deployment-title">{currentPlant.version}</h1>
-            <div className="deployment-meta">
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Activity size={14} /> ID: {currentPlant.id.substring(0, 8)}
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Globe size={14} /> {currentPlant.gitUrl || 'N/A'}
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                진행률: {progress}%
-              </span>
-            </div>
-            {progress > 0 && progress < 100 && (
-              <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '12px' }}>
-                <div style={{ width: `${progress}%`, height: '100%', background: 'var(--primary)', borderRadius: '2px', transition: 'width 0.3s ease' }} />
+    <div className="deployment-page">
+      <button className="back-link" onClick={onBack}>
+        <ArrowLeft size={16} /> 대시보드로 돌아가기
+      </button>
+
+      {/* Top Grid: Header & Info */}
+      <div className="deploy-grid">
+        <div className="deploy-card">
+          <div className="app-header-top">
+            <div className="app-header-left">
+              <div className="app-icon-large">
+                <Sprout size={32} />
               </div>
-            )}
+              <div className="app-titles">
+                <h1>{currentPlant.version}</h1>
+                <p>{currentPlant.gitUrl || 'https://github.com/company/frontend-app'}</p>
+                <a href="#" className="app-link">
+                  <ExternalLink size={12} /> {currentPlant.gitUrl ? currentPlant.gitUrl.replace('https://github.com/', 'https://') + '.deplight.com' : 'https://frontend-app.deplight.com'}
+                </a>
+              </div>
+            </div>
+            <div className="app-header-right">
+              <div className={`status-badge ${currentStatus.className}`}>
+                {currentStatus.icon} {currentStatus.label}
+              </div>
+              <button className="btn-icon">
+                <RefreshCw size={16} />
+              </button>
+            </div>
+          </div>
+
+          <div className="usage-bars">
+            <div className="usage-box">
+              <div className="usage-header">
+                <span className="text-blue">CPU 사용량</span>
+                <span className="info-value">{currentCpu}%</span>
+              </div>
+              <div className="usage-progress">
+                <div className="usage-fill bg-blue" style={{ width: `${currentCpu}%` }}></div>
+              </div>
+            </div>
+            <div className="usage-box green-bg">
+              <div className="usage-header">
+                <span className="text-green">메모리 사용량</span>
+                <span className="info-value">{currentMem}%</span>
+              </div>
+              <div className="usage-progress">
+                <div className="usage-fill bg-green" style={{ width: `${currentMem}%` }}></div>
+              </div>
+            </div>
           </div>
         </div>
-        
-        <div className="action-buttons">
-          <button className="btn btn-ghost" style={{ border: '1px solid var(--border-subtle)' }}>
-            <RotateCcw size={16} /> 롤백 (Rollback)
-          </button>
-          <button className="btn btn-primary">
-            <Rocket size={16} /> 새 버전 배포
-          </button>
+
+        <div className="deploy-card">
+          <h3 className="deploy-card-title">배포 정보</h3>
+          <div className="info-row">
+            <span className="info-label">마지막 배포</span>
+            <span className="info-value">{timeAgo(currentPlant.updatedAt)}</span>
+          </div>
+          <div className="info-row">
+            <span className="info-label">배포 환경</span>
+            <span className="info-value">Production</span>
+          </div>
+          <div className="info-row">
+            <span className="info-label">인스턴스</span>
+            <span className="info-value">2개</span>
+          </div>
+          <div className="info-row">
+            <span className="info-label">리전</span>
+            <span className="info-value">Asia-Northeast1</span>
+          </div>
+          
+          <div className="info-actions">
+            <button className="btn btn-primary btn-full">재배포</button>
+            <button className="btn btn-secondary btn-full">설정</button>
+          </div>
         </div>
       </div>
 
-      <div className="metrics-grid">
-        <MetricsChart data={cpuData} dataKey="cpu" color="var(--primary)" title="CPU Usage (%)" />
-        <MetricsChart data={memData} dataKey="mem" color="var(--success)" title="Memory Usage (%)" />
+      {/* Bottom Grid: Metrics & Logs */}
+      <div className="deploy-grid">
+        <div className="deploy-card" style={{ padding: '0' }}>
+          <div style={{ padding: '32px 32px 0' }}>
+            <h3 className="deploy-card-title">실시간 메트릭</h3>
+          </div>
+          <MetricsChart data={chartData} title="" />
+        </div>
+
+        <div className="deploy-card terminal-card">
+          <div className="terminal-header">
+            <h3>실시간 로그</h3>
+            <button className="btn-icon" style={{ border: 'none' }}>
+              <Download size={16} />
+            </button>
+          </div>
+          <div className="terminal-window">
+            {logs.length === 0 ? (
+              <span className="log-line log-system">[System] 로그 대기 중...</span>
+            ) : (
+              logs.map((log) => (
+                <span key={log.id} className={`log-line ${log.status}`}>
+                  [{log.time}] {log.message}
+                </span>
+              ))
+            )}
+            <div ref={logsEndRef} />
+          </div>
+        </div>
       </div>
 
-      <div className="glass-panel" style={{ padding: '20px' }}>
-        <h3 style={{ marginBottom: '16px', fontSize: '1rem', color: 'var(--text-muted)' }}>실시간 시스템 로그</h3>
-        <div className="logs-panel">
-          {logs.map((log) => (
-            <div key={log.id} className="log-entry">
-              <span className="log-time">[{log.time}]</span>
-              <span className={`log-message ${log.status}`}>{log.message}</span>
-            </div>
-          ))}
-          <div ref={logsEndRef} />
+      {/* AI Insight */}
+      <div className="ai-insight-card">
+        <div className="ai-icon">
+          <Bot size={20} />
+        </div>
+        <div className="ai-text">
+          <strong>AI 인사이트:</strong> 현재 앱의 성능이 안정적입니다. CPU 사용량이 평균 {currentCpu}%로 적정 수준이며, 메모리 사용량도 {currentMem}%로 양호합니다. 최근 24시간 동안 에러가 발생하지 않았으며, 응답 시간도 평균 150ms로 우수한 성능을 보이고 있습니다.
         </div>
       </div>
     </div>
