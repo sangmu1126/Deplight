@@ -1,0 +1,97 @@
+.deployment-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.deployment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.deployment-title-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.back-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-main);
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.back-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.deployment-title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.deployment-meta {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.logs-panel {
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 16px;
+  height: 400px;
+  overflow-y: auto;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 0.875rem;
+}
+
+.log-entry {
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+
+.log-time {
+  color: #6B7280;
+  margin-right: 12px;
+}
+
+.log-message {
+  color: #E5E7EB;
+}
+
+.log-message.error {
+  color: #EF4444;
+}
+
+.log-message.success {
+  color: #10B981;
+}
+
+.log-message.ai {
+  color: #8B5CF6;
+}

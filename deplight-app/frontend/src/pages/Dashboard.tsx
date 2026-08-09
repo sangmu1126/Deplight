@@ -8,7 +8,11 @@ const SOCKET_URL = import.meta.env.MODE === 'production'
   ? window.location.origin 
   : 'http://localhost:8080';
 
-const Dashboard = () => {
+interface DashboardProps {
+  onSelectPlant: (plant: Plant) => void;
+}
+
+const Dashboard = ({ onSelectPlant }: DashboardProps) => {
   const [plants, setPlants] = useState<Plant[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   
@@ -111,7 +115,7 @@ const Dashboard = () => {
             <AppCard 
               key={plant.id} 
               plant={plant} 
-              onClick={() => console.log('Clicked', plant.id)} 
+              onClick={() => onSelectPlant(plant)} 
             />
           ))
         )}
