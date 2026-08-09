@@ -1,54 +1,52 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { ServerCrash } from 'lucide-react';
 import AppCard, { type Plant } from '../components/AppCard';
-import type { Socket } from 'socket.io-client';
+import { mapServiceToPlant, type FastAPIServiceDTO } from '../utils/mappers';
 import './Dashboard.css';
 
 interface DashboardProps {
   onSelectPlant: (plant: Plant) => void;
-  socket: Socket | null;
   workspaceId: string;
 }
 
-const Dashboard = ({ onSelectPlant, socket, workspaceId }: DashboardProps) => {
+const Dashboard = ({ onSelectPlant, workspaceId }: DashboardProps) => {
   const [plants, setPlants] = useState<Plant[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   
 
   useEffect(() => {
-    if (!socket) return;
+    let isMounted = true;
 
-    const onConnect = () => setIsConnected(true);
-    const onDisconnect = () => setIsConnected(false);
+    const fetchServices = async () => {
+      try {
+        const response = await fetch('/api/services');
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        const data = await response.json();
+        
+        if (data.success && Array.isArray(data.services) && isMounted) {
+          setIsConnected(true);
+          const mappedPlants = data.services.map((service: FastAPIServiceDTO) => mapServiceToPlant(service));
+          setPlants(mappedPlants);
+        }
+      } catch (error) {
+        console.error('Error fetching services:', error);
+        if (isMounted) setIsConnected(false);
+      }
+    };
 
-    setIsConnected(socket.connected);
+    // Initial fetch
+    fetchServices();
 
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-
-    socket.on('current-shelf', (data: Plant[]) => {
-      console.log('Received shelf data:', data);
-      setPlants(data);
-    });
-
-    socket.on('plant-update', (updatedData: { id: string, status: any, aiInsight?: string }) => {
-      setPlants(prev => prev.map(p => 
-        p.id === updatedData.id ? { ...p, status: updatedData.status } : p
-      ));
-    });
-
-    // Request initial data
-    if (socket.connected && workspaceId) {
-      socket.emit('get-current-shelf', workspaceId);
-    }
+    // Polling every 3 seconds
+    const interval = setInterval(fetchServices, 3000);
 
     return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('current-shelf');
-      socket.off('plant-update');
+      isMounted = false;
+      clearInterval(interval);
     };
-  }, [socket, workspaceId]);
+  }, [workspaceId]);
 
   return (
     <div className="dashboard-container">

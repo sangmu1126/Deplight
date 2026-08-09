@@ -2,13 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, RotateCcw, Rocket, Globe, Activity } from 'lucide-react';
 import MetricsChart from '../components/MetricsChart';
 import type { Plant } from '../components/AppCard';
-import type { Socket } from 'socket.io-client';
 import './Deployment.css';
 
 interface DeploymentProps {
   plant: Plant;
   onBack: () => void;
-  socket: Socket | null;
 }
 
 interface LogEntry {
@@ -18,70 +16,73 @@ interface LogEntry {
   status: string;
 }
 
-const Deployment = ({ plant, onBack, socket }: DeploymentProps) => {
+const Deployment = ({ plant, onBack }: DeploymentProps) => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [cpuData, setCpuData] = useState<{time: string, cpu: number}[]>([]);
   const [memData, setMemData] = useState<{time: string, mem: number}[]>([]);
   const [currentPlant, setCurrentPlant] = useState<Plant>(plant);
+  const [progress, setProgress] = useState(0);
   const logsEndRef = useRef<HTMLDivElement>(null);
-  const timeCounterRef = useRef(1);
 
   useEffect(() => {
-    if (!socket) return;
+    let isMounted = true;
+    let lastLogCount = 0;
 
-    const onStatusUpdate = (data: any) => {
-      if (data.id === currentPlant.id) {
-        setCurrentPlant(prev => ({ ...prev, status: data.status }));
+    const fetchStatus = async () => {
+      try {
+        const response = await fetch(`/api/deploy/${currentPlant.id}/status`);
+        if (!response.ok) throw new Error('Status fetch failed');
+        
+        const data = await response.json();
+        
+        if (!isMounted) return;
+
+        if (data.success) {
+          // Update status
+          if (data.status) {
+             // Basic mapping, could use mapper here if needed
+             const newStatus = data.status === 'success' ? 'HEALTHY' : 
+                               data.status === 'failed' ? 'ERROR' : 'DEPLOYING';
+             setCurrentPlant(prev => prev.status !== newStatus ? { ...prev, status: newStatus } : prev);
+          }
+          
+          setProgress(data.progress || 0);
+
+          // Update logs if there are new ones
+          if (data.logs && Array.isArray(data.logs)) {
+             if (data.logs.length > lastLogCount) {
+               const newLogs = data.logs.slice(lastLogCount).map((l: any, i: number) => ({
+                 id: Date.now().toString() + i,
+                 time: new Date(l.timestamp || Date.now()).toLocaleTimeString(),
+                 message: l.message,
+                 status: l.type || 'info'
+               }));
+               setLogs(prev => [...prev, ...newLogs].slice(-200));
+               lastLogCount = data.logs.length;
+             }
+          }
+
+          // Generate mock metrics for now, since FastAPI doesn't provide them yet
+          const time = new Date().toLocaleTimeString([], {hour12: false, second: '2-digit', minute: '2-digit'});
+          setCpuData(prev => [...prev, { time, cpu: Math.random() * 20 + 5 }].slice(-20));
+          setMemData(prev => [...prev, { time, mem: Math.random() * 30 + 40 }].slice(-20));
+        }
+      } catch (error) {
+        console.error('Error polling deployment status:', error);
       }
     };
 
-    const onNewLog = (data: any) => {
-      if (data.id === currentPlant.id) {
-        setLogs(prev => {
-          const newLogs = [...prev, {
-            id: Date.now().toString(),
-            time: new Date(data.log.time || Date.now()).toLocaleTimeString(),
-            message: data.log.message,
-            status: data.log.status || 'info'
-          }];
-          return newLogs.slice(-200); // keep last 200 logs
-        });
-      }
-    };
+    // Initial fetch
+    fetchStatus();
 
-    const onMetricsUpdate = (data: any) => {
-      const time = new Date().toLocaleTimeString([], {hour12: false, second: '2-digit', minute: '2-digit'});
-      
-      setCpuData(prev => {
-        const next = [...prev, { time, cpu: data.cpu }];
-        return next.slice(-20);
-      });
-      
-      setMemData(prev => {
-        const memPercent = (data.mem / 2.56); // Normalizing MB to %
-        const next = [...prev, { time, mem: memPercent }];
-        return next.slice(-20);
-      });
-      
-      timeCounterRef.current += 1;
-    };
-
-    socket.on('status-update', onStatusUpdate);
-    socket.on('new-log', onNewLog);
-    socket.on('metrics-update', onMetricsUpdate);
-
-    // Initial requests
-    socket.emit('get-logs-for-plant', currentPlant.id);
-    
-    // In original code, runId is needed for metrics, mock it for now if missing
-    // socket.emit('get-deployment-metrics', { runId: currentPlant.runId });
+    // Poll every 3 seconds
+    const interval = setInterval(fetchStatus, 3000);
 
     return () => {
-      socket.off('status-update', onStatusUpdate);
-      socket.off('new-log', onNewLog);
-      socket.off('metrics-update', onMetricsUpdate);
+      isMounted = false;
+      clearInterval(interval);
     };
-  }, [socket, currentPlant.id]);
+  }, [currentPlant.id]);
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -103,7 +104,15 @@ const Deployment = ({ plant, onBack, socket }: DeploymentProps) => {
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <Globe size={14} /> {currentPlant.gitUrl || 'N/A'}
               </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                진행률: {progress}%
+              </span>
             </div>
+            {progress > 0 && progress < 100 && (
+              <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '12px' }}>
+                <div style={{ width: `${progress}%`, height: '100%', background: 'var(--primary)', borderRadius: '2px', transition: 'width 0.3s ease' }} />
+              </div>
+            )}
           </div>
         </div>
         
