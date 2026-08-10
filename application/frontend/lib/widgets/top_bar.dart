@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_data.dart';
 import '../models/workspace.dart';
 import 'profile_menu.dart';
@@ -8,7 +7,7 @@ import '../pages/profile.dart';
 
 class TopBar extends StatelessWidget implements PreferredSizeWidget {
   // --- 상태 데이터 ---
-  final User currentUser;
+  final dynamic currentUser;
   final UserData? userData;
   final List<Workspace> workspaces;
   final String? selectedWorkspaceId;

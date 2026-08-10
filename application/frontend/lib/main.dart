@@ -14,12 +14,10 @@ import 'pages/login.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
-  // 앱이 시작할 때마다 강제로 로그아웃시켜서 '유령 세션'을 지웁니다.
-  await FirebaseAuth.instance.signOut();
+  // 로컬 모드: Firebase 초기화 생략
+  // await Firebase.initializeApp(
+  //   options: DefaultFirebaseOptions.currentPlatform,
+  // );
 
   runApp(MyApp());
 }
@@ -56,23 +54,8 @@ class MyApp extends StatelessWidget {
 class AuthWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        // 로딩 중...
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(body: Center(child: CircularProgressIndicator()));
-        }
-
-        // 4. 로그인 상태에 따라 페이지 분기
-        if (snapshot.hasData) {
-          // 로그인 됨 -> AppCore (기존 메인 앱)
-          return AppCore();
-        } else {
-          // 로그인 안 됨 -> LoginPage
-          return LoginPage();
-        }
-      },
-    );
+    // 로컬 모드: 로그인 과정을 건너뛰고 바로 메인으로 진입하거나, 
+    // 스트림 대신 고정된 값을 반환합니다.
+    return AppCore();
   }
 }

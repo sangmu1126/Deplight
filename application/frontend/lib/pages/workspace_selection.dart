@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Timestamp 때문에 필요
 import '../models/user_data.dart';
 import '../models/workspace.dart'; // (★★ 수정: import)
 
@@ -10,7 +8,7 @@ class WorkspaceSelectionPage extends StatelessWidget {
   final VoidCallback onCreateWorkspace;
   final VoidCallback onLogout;
   final Function(String, String) onWorkspaceSelected;
-  final User currentUser;
+  final dynamic currentUser;
   final UserData? userData;
 
   // (★★ 수정: List<dynamic> -> List<Workspace>)
@@ -282,9 +280,7 @@ class WorkspaceSelectionPage extends StatelessWidget {
   String _formatDate(dynamic timestamp) {
     if (timestamp == null) return '';
     DateTime date;
-    if (timestamp is Timestamp) {
-      date = timestamp.toDate();
-    } else if (timestamp is DateTime) {
+    if (timestamp is DateTime) {
       date = timestamp;
     } else {
       return '';

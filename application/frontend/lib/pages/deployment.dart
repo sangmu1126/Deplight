@@ -3,7 +3,6 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:intl/intl.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/plant_model.dart';
 import '../models/logEntry_model.dart';
 import '../models/user_data.dart';
@@ -14,7 +13,7 @@ import '../widgets/deploy_modal.dart';
 class DeploymentPage extends StatefulWidget {
   final Plant plant;
   final IO.Socket socket;
-  final User currentUser;
+  final dynamic currentUser;
   final UserData? userData;
   final String workspaceId;
 
@@ -182,9 +181,6 @@ class _DeploymentPageState extends State<DeploymentPage> {
       builder: (BuildContext dialogContext) {
         return DeployModal(
           plant: widget.plant,
-          socket: widget.socket,
-          currentUser: widget.currentUser,
-          workspaceId: widget.workspaceId,
         );
       },
     );
@@ -584,13 +580,17 @@ class _DeploymentPageState extends State<DeploymentPage> {
     );
 
     // --- (수정) 기존 Card 위젯 ---
+    final DateTime deployTime = plant.lastDeployedAt is DateTime 
+        ? plant.lastDeployedAt 
+        : plant.lastDeployedAt.toDate();
+    
     return _buildBaseCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildCardHeader("배포 정보"),
           const SizedBox(height: 16),
-          _buildInfoRow("마지막 배포", DateFormat('yy-MM-dd HH:mm').format(plant.lastDeployedAt.toDate())),
+          _buildInfoRow("마지막 배포", DateFormat('yy-MM-dd HH:mm').format(deployTime)),
           _buildInfoRow("배포 환경", plant.plantType == 'pot' ? "Development" : "Production"),
           _buildInfoRow("ECS 클러스터", "delightful-deploy-cluster"),
           _buildInfoRow("리전", "ap-northeast-2 (Seoul)"),

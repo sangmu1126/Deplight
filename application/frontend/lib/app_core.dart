@@ -5,10 +5,6 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:flutter_localizations/flutter_localizations.dart';
 import '../l10n/app_localizations.dart';
@@ -25,7 +21,6 @@ import 'models/user_data.dart';
 import 'widgets/top_bar.dart';
 import 'pages/profile.dart';
 import 'pages/settings.dart';
-import 'pages/deployment.dart';
 import 'app_state.dart';
 import 'widgets/new_deploy.dart';
 import '../widgets/new_workspace.dart';
@@ -103,7 +98,7 @@ class _AppCoreState extends State<AppCore> {
   List<FlSpot> memData = [FlSpot(0, 128)];
   double _timeCounter = 1.0;
 
-  User? _currentUser;
+  dynamic _currentUser; // Firebase User 대신 dynamic 사용
   UserData? _userData;
 
   List<Workspace> _workspaces = [];
@@ -130,56 +125,30 @@ class _AppCoreState extends State<AppCore> {
 
 // 통합 초기화 함수
   Future<void> _initializeAll() async {
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      print("오류: AppCore 진입했으나 사용자 null. 강제 로그아웃.");
-      FirebaseAuth.instance.signOut();
-      return;
+    // 1. 사용자 정보 먼저 설정 (로컬 모드)
+    if (mounted) {
+      setState(() {
+        _currentUser = {
+          'uid': 'local-user',
+          'email': 'local-user@example.com',
+          'displayName': 'Local User',
+        };
+        _userData = UserData(
+          uid: 'local-user',
+          email: 'local-user@example.com',
+          displayName: 'Local User',
+          role: 'admin',
+          createdAt: DateTime.now(),
+        );
+      });
     }
 
-    String? token;
-    try {
-      token = await user.getIdToken();
-    } catch (e) {
-      print("토큰 가져오기 실패: $e. 강제 로그아웃.");
-      FirebaseAuth.instance.signOut();
-      return;
-    }
-
-    if (token == null) {
-      print("토큰이 null입니다. 강제 로그아웃.");
-      FirebaseAuth.instance.signOut();
-      return;
-    }
-
-    DocumentSnapshot<Map<String, dynamic>>? userDataDoc;
-    try {
-      final docRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
-      userDataDoc = await docRef.get();
-    } catch (e) {
-      print("Firestore 사용자 정보 로드 실패: $e");
-    }
-
-    // (중요) 토큰을 가져온 후에 소켓 연결
-    await connectToSocket(token);
-
-    // (신규) 소켓 연결 후 워크스페이스 목록 바로 요청
-    socket?.emit('get-my-workspaces');
+    // 2. 그 다음 소켓 연결
+    const String dummyToken = "local-token";
+    await connectToSocket(dummyToken);
 
     if (socket != null) {
       appState.setSocket(socket!);
-    }
-
-    socket?.emit('get-my-workspaces');
-
-    if (mounted) {
-      setState(() {
-        _currentUser = user;
-        if (userDataDoc != null && userDataDoc.exists) {
-          _userData = UserData.fromFirestore(userDataDoc);
-        }
-        _isLoading = false; // (로딩 완료)
-      });
     }
   }
 
@@ -205,18 +174,31 @@ class _AppCoreState extends State<AppCore> {
     String hostUrl;
     if (kIsWeb) {
       final uri = Uri.base.origin;
-      hostUrl = kDebugMode ? 'http://localhost:8080' : uri.toString();
+      hostUrl = kDebugMode ? 'http://localhost:8081' : uri.toString();
     } else {
       hostUrl = 'https://deplight-softbank.asia-northeast3.run.app';
     }
 
     socket = IO.io(hostUrl, <String, dynamic>{
-      'transports': ['websocket'],
+      'transports': ['websocket', 'polling'],
       'autoConnect': true,
       'auth': {
         'token': token // (전달받은 토큰 사용)
       }
     });
+
+    socket?.onConnect((_) {
+      print('Socket connected to $hostUrl');
+      socket?.emit('get-my-workspaces');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    });
+
+    socket?.onConnectError((data) => print('Connect Error: $data'));
+    socket?.onDisconnect((_) => print('Disconnected'));
 
     socket?.on('new-plant', _onNewPlant);
     // socket?.on('plant-update', _onPlantUpdate); // (삭제)
@@ -257,7 +239,7 @@ class _AppCoreState extends State<AppCore> {
       name: data['name'] ?? data['version'] ?? 'New App',
       githubUrl: data['githubUrl'] ?? data['description'] ?? '',
       status: data['status'], // (예: "DEPLOYING")
-      lastDeployedAt: Timestamp.now(),
+      lastDeployedAt: DateTime.now(),
       cpuUsage: 0.0,
       memUsage: 0.0,
       ownerUid: data['ownerUid'] ?? '',
@@ -362,7 +344,7 @@ class _AppCoreState extends State<AppCore> {
   }
 
   void _onLogout() {
-    FirebaseAuth.instance.signOut();
+    print("Local Logout");
   }
 
   void _startNewDeployment(BuildContext context, String workspaceId) {
@@ -424,6 +406,21 @@ class _AppCoreState extends State<AppCore> {
               CircularProgressIndicator(),
               SizedBox(height: 16),
               Text("서버와 연결 중..."),
+              SizedBox(height: 8),
+              Text("Socket: ${socket != null ? 'Initialized' : 'Null'}", style: TextStyle(fontSize: 10)),
+              Text("Connected: ${socket?.connected ?? false}", style: TextStyle(fontSize: 10)),
+              Text("Workspaces Loading: $_isLoadingWorkspaces", style: TextStyle(fontSize: 10)),
+              SizedBox(height: 20),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _isLoading = false;
+                    _isLoadingWorkspaces = false;
+                    _workspaces = [Workspace(id: 'ws-1', name: 'Emergency Local', description: 'Bypassed connection', ownerUid: 'local', members: ['local'], createdAt: DateTime.now())];
+                  });
+                },
+                child: Text("연결 건너뛰기 (디버그용)", style: TextStyle(color: Colors.grey)),
+              ),
             ],
           ),
         ),
@@ -439,7 +436,7 @@ class _AppCoreState extends State<AppCore> {
         return Scaffold(
           // --- (공통 TopBar) ---
           appBar: TopBar(
-            currentUser: _currentUser!,
+            currentUser: _currentUser ?? {},
             userData: _userData,
             workspaces: _workspaces,
             isLoading: _isLoadingWorkspaces,
@@ -468,7 +465,7 @@ class _AppCoreState extends State<AppCore> {
       children: [
         // --- Index 0: workspaceSelection ---
         WorkspaceSelectionPage(
-          currentUser: _currentUser!,
+          currentUser: _currentUser ?? {},
           userData: _userData,
           workspaces: _workspaces,
           onCreateWorkspace: () => _showCreateWorkspaceDialog(context),
@@ -483,7 +480,7 @@ class _AppCoreState extends State<AppCore> {
                 return const Center(child: CircularProgressIndicator());
               }
               return ShelfPage(
-                currentUser: _currentUser!,
+                currentUser: _currentUser ?? {},
                 userData: _userData,
                 workspaceId: navState.workspaceId!, // (수정)
                 workspaceName: navState.workspaceName, // (수정)
@@ -499,7 +496,7 @@ class _AppCoreState extends State<AppCore> {
 
         // --- Index 2: profile ---
         ProfilePage(
-          currentUser: _currentUser!,
+          currentUser: _currentUser ?? {},
           userData: _userData,
           onGoBackToDashboard: appState.showShelfPage, // (수정)
         ),
@@ -529,7 +526,7 @@ class _AppCoreState extends State<AppCore> {
               return DeploymentPage(
                 plant: navState.plant!,
                 socket: socket!,
-                currentUser: _currentUser!,
+                currentUser: _currentUser ?? {},
                 userData: _userData,
                 // (수정) workspaceId가 null일 수 있으므로 null-check 추가
                 workspaceId: navState.workspaceId ?? "",

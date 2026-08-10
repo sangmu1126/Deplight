@@ -1,29 +1,25 @@
 // models/plant_model.dart
-
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'logEntry_model.dart'; // deployment.dart에서 사용하므로 임포트
+import 'logEntry_model.dart'; 
 
 class Plant {
   final String id;
-  final String githubUrl; // 변경되지 않는 정보
+  final String githubUrl; 
   final String ownerUid;
   final String workspaceId;
 
-  // --- 실시간으로 변경되는 필드 (final 제거) ---
-  String name; // (was 'version')
+  String name; 
   String status;
-  Timestamp lastDeployedAt;
+  dynamic lastDeployedAt; // Timestamp 대신 dynamic 사용 (local mode)
   double cpuUsage;
   double memUsage;
   String plantType;
   List<String> reactions;
-  String? runId; // GitHub Actions run ID for CloudWatch metrics
+  String? runId; 
 
-  // --- DeploymentPage에서만 사용하는 상태 (final 아님) ---
   bool isSparkling;
   String currentStatusMessage;
-  List<LogEntry> logs; //
-  String aiInsight; //
+  List<LogEntry> logs; 
+  String aiInsight; 
 
   Plant({
     required this.id,
@@ -38,22 +34,32 @@ class Plant {
     this.workspaceId = '',
     this.reactions = const [],
     this.runId,
-
-    // DeploymentPage용 필드 초기화
     this.isSparkling = false,
     this.currentStatusMessage = '',
-    this.logs = const [], //
-    this.aiInsight = '배포가 성공적으로 완료되었습니다. CPU 및 메모리 사용량이 안정적인 범위 내에 있으며, 서비스가 정상적으로 운영되고 있습니다. 지속적인 모니터링을 통해 최적의 성능을 유지하고 있습니다.', //
+    this.logs = const [], 
+    this.aiInsight = '배포 완료됨.', 
   });
 
-  // Firestore 등에서 데이터를 받아오는 팩토리 생성자
   factory Plant.fromMap(Map<String, dynamic> data) {
+    dynamic rawDate = data['lastDeployedAt'];
+    DateTime date;
+    if (rawDate is String) {
+      date = DateTime.tryParse(rawDate) ?? DateTime.now();
+    } else if (rawDate is DateTime) {
+      date = rawDate;
+    } else if (rawDate is Map && rawDate.containsKey('toDate')) {
+      // Handle fake Firebase object if sent
+      date = DateTime.now(); 
+    } else {
+      date = DateTime.now();
+    }
+
     return Plant(
       id: data['id'],
       name: data['name'] ?? data['version'] ?? 'Unnamed App',
       githubUrl: data['githubUrl'] ?? data['description'] ?? '',
       status: data['status'] ?? 'UNKNOWN',
-      lastDeployedAt: data['lastDeployedAt'] ?? Timestamp.now(),
+      lastDeployedAt: date,
       cpuUsage: (data['cpuUsage'] ?? 0.0).toDouble(),
       memUsage: (data['memUsage'] ?? 0.0).toDouble(),
       workspaceId: data['workspaceId'] ?? '',
@@ -62,7 +68,7 @@ class Plant {
       reactions: List<String>.from(data['reactions'] ?? []),
       runId: data['runId'],
       currentStatusMessage: data['status'] == 'HEALTHY' ? '배포 완료됨' : '대기 중',
-      logs: [], // ShelfPage에서는 로그를 로드하지 않음
+      logs: [],
     );
   }
 }

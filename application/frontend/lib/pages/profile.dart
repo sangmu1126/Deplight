@@ -1,12 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // (수정) import 추가
 import '../models/user_data.dart'; // (수정) import 추가 (경로는 실제 위치에 맞게 조정하세요)
-// import 'package:intl/intl.dart'; // (선택) 날짜 포매팅을 위해 필요할 수 있습니다.
 
 class ProfilePage extends StatelessWidget {
   final VoidCallback onGoBackToDashboard;
-  final User currentUser; // (수정) Firebase 유저 정보
+  final dynamic currentUser; // (수정) Firebase 유저 정보
   final UserData? userData; // (수정) Firestore 유저 정보 (null일 수 있음)
 
   const ProfilePage({
@@ -27,12 +24,12 @@ class ProfilePage extends StatelessWidget {
   static const Color _avatarBgColor = Color(0xFFE0E7FF);
 
   // (신규) 날짜 포매팅 헬퍼
-  String _formatTimestamp(Timestamp? timestamp) {
+  String _formatTimestamp(dynamic timestamp) {
     if (timestamp == null) return "정보 없음";
-    // (간단한 포매팅)
-    return timestamp.toDate().toLocal().toString().split(' ')[0];
-    // (복잡한 포매팅 예시: intl 패키지 필요)
-    // return DateFormat('yyyy.MM.dd').format(timestamp.toDate().toLocal());
+    if (timestamp is DateTime) {
+      return timestamp.toLocal().toString().split(' ')[0];
+    }
+    return "정보 없음";
   }
 
   // (신규) 날짜 포매팅 헬퍼 (DateTime)
@@ -176,8 +173,8 @@ class ProfilePage extends StatelessWidget {
   // --- "기본 정보" 카드 ---
   Widget _buildBasicInfoCard(BuildContext context) {
     // (수정) UserData 모델 기반으로 변수 수정
-    final String displayName = userData?.displayName ?? currentUser.displayName ?? "사용자";
-    final String email = currentUser.email ?? "이메일 없음";
+    final String displayName = userData?.displayName ?? "사용자";
+    final String email = "local-user@example.com";
     final String initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : "U";
     final String role = userData?.role ?? "user"; // (수정) "부서" 대신 "역할"
     final String phone = "정보 없음"; // (수정) 모델에 없으므로
@@ -455,8 +452,8 @@ class ProfilePage extends StatelessWidget {
   // --- "활동 요약" 카드 ---
   Widget _buildActivityCard(BuildContext context) {
     // (수정) 하드코딩된 값 대신 실제 데이터 사용
-    final String lastLogin = _formatDateTime(currentUser.metadata.lastSignInTime);
-    final String joinDate = _formatTimestamp(userData?.createdAt);
+    final String lastLogin = "방금 전";
+    final String joinDate = "2026-08-01";
 
     return _buildBaseCard(
       child: Column(

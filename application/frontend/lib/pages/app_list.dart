@@ -1,7 +1,6 @@
 // app_list.dart (ShelfPage)
 
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:timeago/timeago.dart' as timeago; // 시간 표시 (예: "2시간 전")
 import 'package:percent_indicator/percent_indicator.dart'; // 프로그레스 바
@@ -15,7 +14,7 @@ class ShelfPage extends StatefulWidget {
   final VoidCallback onDeploy; // "+ 새 앱 배포" 버튼에 연결됨
   final Function(Plant) onPlantTap;
   final Function(String, String) onSlackReaction;
-  final User currentUser;
+  final dynamic currentUser;
   final UserData? userData;
   final IO.Socket socket;
   final List<dynamic> workspaces; // (TopBar용 - 현재는 사용 안함)
@@ -367,7 +366,10 @@ class _AppDashboardCard extends StatelessWidget {
   // --- 7. (수정) 카드 본문 (모든 로직 통합) ---
   // (이전 코드의 _buildCardBody를 이 코드로 대체)
   Widget _buildCardBody(BuildContext context, Plant plant) {
-    final String timeAgo = timeago.format(plant.lastDeployedAt.toDate(), locale: 'ko');
+    final DateTime deployTime = plant.lastDeployedAt is DateTime 
+        ? plant.lastDeployedAt 
+        : plant.lastDeployedAt.toDate();
+    final String timeAgo = timeago.format(deployTime, locale: 'ko');
 
     switch (plant.status) {
     // --- (수정) HEALTHY/NORMAL일 때 신규 디자인 사용 ---

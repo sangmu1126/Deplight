@@ -1,11 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class UserData {
   final String uid;
   final String email;
   final String displayName;
   final String role;
-  final Timestamp createdAt;
+  final dynamic createdAt; // local mode: use dynamic instead of Timestamp
 
   UserData({
     required this.uid,
@@ -15,15 +13,24 @@ class UserData {
     required this.createdAt,
   });
 
-  // (Firestore DocumentSnapshot용)
-  factory UserData.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+  factory UserData.fromFirestore(dynamic doc) {
+    Map<String, dynamic> data = doc is Map ? doc as Map<String, dynamic> : doc.data() as Map<String, dynamic>;
+    dynamic rawDate = data['createdAt'];
+    DateTime date;
+    if (rawDate is String) {
+      date = DateTime.tryParse(rawDate) ?? DateTime.now();
+    } else if (rawDate is DateTime) {
+      date = rawDate;
+    } else {
+      date = DateTime.now();
+    }
+
     return UserData(
-      uid: doc.id,
+      uid: doc is Map ? (data['uid'] ?? 'unknown') : doc.id,
       email: data['email'] ?? '',
       displayName: data['displayName'] ?? 'New User',
       role: data['role'] ?? 'user',
-      createdAt: data['createdAt'] ?? Timestamp.now(),
+      createdAt: date,
     );
   }
 }

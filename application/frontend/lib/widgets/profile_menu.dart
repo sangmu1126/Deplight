@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../pages/settings.dart';
 import '../pages/profile.dart';
 import '../l10n/app_localizations.dart';
@@ -7,7 +6,7 @@ import '../app_state.dart';
 import '../models/user_data.dart';
 
 class ProfileMenuButton extends StatelessWidget {
-  final User currentUser;
+  final dynamic currentUser;
   final UserData? userData;
   final VoidCallback onLogout;
   final VoidCallback onShowProfile;
@@ -48,11 +47,11 @@ class ProfileMenuButton extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                    userData?.displayName ?? currentUser.email ?? '이름 없음',
+                    userData?.displayName ?? '로컬 사용자',
                     style: TextStyle(fontWeight: FontWeight.bold, color: theme.textTheme.bodyMedium?.color)
                 ),
                 Text(
-                    currentUser.email ?? '이메일 없음',
+                    'local-user@example.com',
                     style: TextStyle(color: theme.hintColor, fontSize: 12)
                 ),
               ],
@@ -122,7 +121,7 @@ class ProfileMenuButton extends StatelessWidget {
         foregroundColor: theme.colorScheme.primary,
         radius: 16,
         child: Text(
-          currentUser.email?[0].toUpperCase() ?? 'U',
+          'L',
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
         ),
       ),
