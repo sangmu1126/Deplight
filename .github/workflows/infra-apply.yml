@@ -1,0 +1,77 @@
+name: Infra Apply (Terraform)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-2
+
+jobs:
+  terraform-apply:
+    name: Apply Terraform
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Package Lambda Function
+        run: |
+          cd lambda/ai_code_analyzer
+          pip install -r requirements.txt -t .
+          cd ../..
+          mkdir -p build
+          cd lambda/ai_code_analyzer
+          zip -r ../../build/ai_analyzer.zip . -x "*.pyc" -x "__pycache__/*" -x "*.git/*"
+          ls -lh ../../build/ai_analyzer.zip
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.5.0'
+
+      - name: Terraform Init
+        working-directory: ./infrastructure/terraform
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: ./infrastructure/terraform
+        run: |
+          terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: ./infrastructure/terraform
+        run: terraform apply -auto-approve tfplan
+
+      - name: Verify ECS services
+        run: |
+          echo "Cluster: delightful-deploy-cluster"
+          aws ecs describe-services \
+            --cluster delightful-deploy-cluster \
+            --services delightful-deploy-service delightful-deploy-dashboard-service \
+            --output table || true
