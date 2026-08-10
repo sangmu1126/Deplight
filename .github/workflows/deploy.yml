@@ -236,8 +236,8 @@ jobs:
         run: |
           set -euo pipefail
           REGION="${{ env.AWS_REGION }}"
-          HIST="deplight-platform-deployment-history"
-          LOGS="deplight-platform-deployment-logs"
+          HIST="delightful-deploy-deployment-history"
+          LOGS="delightful-deploy-deployment-logs"
 
           echo "Ensuring DynamoDB table: $HIST"
           if ! aws dynamodb describe-table --table-name "$HIST" --region "$REGION" >/dev/null 2>&1; then
@@ -481,7 +481,7 @@ jobs:
           DEPLOYMENT_ID="deploy-${{ steps.meta.outputs.short-sha }}"
 
           aws dynamodb put-item \
-            --table-name deplight-platform-deployment-history \
+            --table-name delightful-deploy-deployment-history \
             --item "{
               \"id\": {\"S\": \"${DEPLOYMENT_ID}\"},
               \"timestamp\": {\"S\": \"${TIMESTAMP}\"},
@@ -685,7 +685,7 @@ jobs:
           TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
           aws dynamodb put-item \
-            --table-name deplight-platform-deployment-logs \
+            --table-name delightful-deploy-deployment-logs \
             --item "{
               \"deployment_id\": {\"S\": \"${DEPLOYMENT_ID}\"},
               \"timestamp\": {\"S\": \"${TIMESTAMP}\"},
@@ -708,7 +708,7 @@ jobs:
           # Log: Terraform deployment complete
           TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           aws dynamodb put-item \
-            --table-name deplight-platform-deployment-logs \
+            --table-name delightful-deploy-deployment-logs \
             --item "{
               \"deployment_id\": {\"S\": \"${DEPLOYMENT_ID}\"},
               \"timestamp\": {\"S\": \"${TIMESTAMP}\"},
@@ -885,7 +885,7 @@ jobs:
           ALB_URL="${{ steps.alb.outputs.url }}"
 
           aws dynamodb put-item \
-            --table-name deplight-platform-deployment-logs \
+            --table-name delightful-deploy-deployment-logs \
             --item "{
               \"deployment_id\": {\"S\": \"${DEPLOYMENT_ID}\"},
               \"timestamp\": {\"S\": \"${TIMESTAMP}\"},
@@ -1235,7 +1235,7 @@ jobs:
             echo "Saving user app deployment to DynamoDB: ${DEPLOYMENT_ID}"
 
             aws dynamodb put-item \
-              --table-name deplight-platform-deployment-history \
+              --table-name delightful-deploy-deployment-history \
               --item "{
                 \"id\": {\"S\": \"${DEPLOYMENT_ID}\"},
                 \"deployment_id\": {\"S\": \"${DEPLOYMENT_ID}\"},
@@ -1258,7 +1258,7 @@ jobs:
             DEPLOYMENT_ID="deploy-${SHORT_SHA}"
 
             aws dynamodb update-item \
-              --table-name deplight-platform-deployment-history \
+              --table-name delightful-deploy-deployment-history \
               --key "{\"id\": {\"S\": \"${DEPLOYMENT_ID}\"}}" \
               --update-expression "SET #status = :status, completed_at = :timestamp, deployment_id = :deployment_id" \
               --expression-attribute-names '{"#status": "status"}' \
