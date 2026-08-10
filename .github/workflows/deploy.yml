@@ -48,6 +48,17 @@ jobs:
     name: Notify Start (Slack)
     runs-on: ubuntu-latest
     steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::265233844540:role/github-actions-deplight-role
+          aws-region: ${{ env.AWS_REGION }}
+          
+      - name: Record GitHub Run ID
+        run: |
+          DEPLOYMENT_ID="${{ github.event.inputs.deployment_id || github.run_id }}"
+          aws dynamodb update-item --table-name delightful-deploy-deployment-history --key "{\"id\": {\"S\": \"${DEPLOYMENT_ID}\"}}" --update-expression "SET github_run_id = :r" --expression-attribute-values "{\":r\": {\"S\": \"${{ github.run_id }}\"}}" || true
+          
       - name: 🚀 Send deployment start notification to Slack
         if: env.SLACK_BOT_TOKEN != ''
         run: |
