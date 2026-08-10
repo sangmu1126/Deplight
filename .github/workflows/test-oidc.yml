@@ -7,6 +7,15 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      - name: Inspect OIDC Token Payload
+        run: |
+          # Fetch the token using the built-in runner environment variables
+          TOKEN=$(curl -sLS "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" | jq -r '.value')
+          # Split the JWT into header, payload, and signature
+          HEADER=$(echo -n $TOKEN | cut -d '.' -f 1 | base64 --decode)
+          PAYLOAD=$(echo -n $TOKEN | cut -d '.' -f 2 | base64 --decode)
+          echo "JWT Header: $HEADER"
+          echo "JWT Payload: $PAYLOAD"
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
