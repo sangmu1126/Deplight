@@ -229,7 +229,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: arn:aws:iam::265233844540:role/github-actions-deplight-role
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Ensure DynamoDB tables exist (dev)
@@ -418,7 +418,7 @@ jobs:
 
           # For user apps, use separate ECR repository per app
           if [ -n "${{ github.event.inputs.target_repository }}" ]; then
-            # Extract repo name from URL (e.g., "sabill123/fastapi-deploy-test" → "fastapi-deploy-test")
+            # Extract repo name from URL (e.g., "sangmu1126/fastapi-deploy-test" → "fastapi-deploy-test")
             REPO_NAME=$(echo "${{ github.event.inputs.target_repository }}" | sed 's|.*/||' | sed 's|\.git$||' | tr '[:upper:]' '[:lower:]')
             ECR_REPO="user-app-${REPO_NAME}"
             echo "ecr-repository=${ECR_REPO}" >> $GITHUB_OUTPUT
@@ -509,7 +509,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: arn:aws:iam::265233844540:role/github-actions-deplight-role
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
@@ -668,7 +668,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: arn:aws:iam::265233844540:role/github-actions-deplight-role
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Set deployment info
@@ -954,7 +954,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: arn:aws:iam::265233844540:role/github-actions-deplight-role
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Create deployment manifest
@@ -1016,7 +1016,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: arn:aws:iam::265233844540:role/github-actions-deplight-role
           aws-region: ${{ env.AWS_REGION }}
       - name: Determine deployment status
         id: status
