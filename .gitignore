@@ -1,0 +1,36 @@
+# IDE settings
+.idea/
+.vscode/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Terraform secrets and state
+*.tfvars
+*.tfstate
+*.tfstate.*
+.terraform/
+tfplan
+*.tfplan
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.env
+!.env.example
+
+# Node / JS
+node_modules/
+dist/
+out/
+
+# Build artifacts and temporary files
+*.zip
+deploy_pkg/
+.DS_Store
+Thumbs.db
