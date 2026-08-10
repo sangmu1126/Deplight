@@ -19,15 +19,15 @@ variable "app_name" {
 variable "vpc_id" {
   description = "VPC ID"
   type        = string
-  default     = "vpc-0139379503d38f151"
+  default     = "vpc-091d4e4ddec1e37ba"
 }
 
 variable "public_subnet_ids" {
   description = "Public subnet IDs for ALB"
   type        = list(string)
   default = [
-    "subnet-08910097cf5286210",  # ap-northeast-2b (same as ECS tasks)
-    "subnet-067bccb68d144573b"   # ap-northeast-2c (same as ECS tasks)
+    "subnet-06b51abbad1ec0715",  # ap-northeast-2b (same as ECS tasks)
+    "subnet-079004c63f3d5ad00"   # ap-northeast-2c (same as ECS tasks)
   ]
 }
 
@@ -35,8 +35,8 @@ variable "private_subnet_ids" {
   description = "Private subnet IDs for ECS tasks"
   type        = list(string)
   default = [
-    "subnet-08910097cf5286210",  # ap-northeast-2b
-    "subnet-067bccb68d144573b"   # ap-northeast-2c
+    "subnet-06b51abbad1ec0715",  # ap-northeast-2b
+    "subnet-079004c63f3d5ad00"   # ap-northeast-2c
   ]
 }
 
