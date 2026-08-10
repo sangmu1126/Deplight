@@ -309,7 +309,7 @@ jobs:
           # Poll S3 for dockerfile (indicates analysis complete)
           S3_BUCKET="${{ env.S3_ARTIFACTS_BUCKET }}"
           S3_DOCKERFILE_KEY="analysis/${ANALYSIS_ID}/dockerfile"
-          MAX_WAIT=300  # 5 minutes
+          MAX_WAIT=0  # TEMPORARILY SKIPPED: was 300 (5 minutes)
           WAIT_TIME=0
           POLL_INTERVAL=10
 
