@@ -1,0 +1,73 @@
+.pipeline-monitor {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  margin-bottom: 24px;
+  border: 1px solid #E2E8F0;
+}
+
+.pipeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.pipeline-progress-text {
+  font-weight: 600;
+  color: #4F46E5;
+}
+
+.pipeline-progress-bar-container {
+  height: 8px;
+  background-color: #E2E8F0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.pipeline-progress-bar {
+  height: 100%;
+  background-color: #4F46E5;
+  transition: width 0.5s ease;
+}
+
+.pipeline-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.pipeline-step-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step-completed { color: #059669; }
+.step-current { color: #3B82F6; }
+.step-pending { color: #CBD5E1; }
+
+.step-text-completed {
+  font-size: 0.85rem;
+  color: #1e293b;
+  font-weight: 500;
+}
+
+.step-text-current {
+  font-size: 0.85rem;
+  color: #3B82F6;
+  font-weight: 600;
+}
+
+.step-text-pending {
+  font-size: 0.85rem;
+  color: #94A3B8;
+}

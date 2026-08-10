@@ -7,7 +7,11 @@ interface Secret {
   value: string;
 }
 
-const Settings = () => {
+interface SettingsProps {
+  onBack?: () => void;
+}
+
+const Settings = ({ onBack }: SettingsProps) => {
   const [secrets] = useState<Secret[]>([
     { id: '1', key: 'DATABASE_URL', value: 'postgresql://***' },
     { id: '2', key: 'API_KEY', value: 'sk-***' },
@@ -17,9 +21,19 @@ const Settings = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      <div>
-        <h1 style={{ fontSize: '1.875rem', fontWeight: 700, marginBottom: '8px' }}>환경 설정</h1>
-        <p style={{ color: 'var(--text-muted)' }}>시스템 통합 및 환경 변수를 관리하세요.</p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        {onBack && (
+          <button 
+            onClick={onBack}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#64748b' }}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+          </button>
+        )}
+        <div>
+          <h1 style={{ fontSize: '1.875rem', fontWeight: 700, margin: '0 0 8px 0' }}>환경 설정</h1>
+          <p style={{ color: '#64748B', margin: 0 }}>워크스페이스 환경과 보안 시크릿을 관리합니다.</p>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '32px' }}>

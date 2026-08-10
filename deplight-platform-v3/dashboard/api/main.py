@@ -46,6 +46,7 @@ deployment_table = dynamodb.Table('delightful-deploy-deployment-history')
 ai_analysis_table = dynamodb.Table('delightful-deploy-ai-analysis')
 garden_state_table = dynamodb.Table('delightful-deploy-garden-state')
 deployment_logs_table = dynamodb.Table('delightful-deploy-deployment-logs')
+cloudwatch = boto3.client('cloudwatch', region_name=AWS_REGION)
 
 # ALB DNS (환경변수에서 가져오기 - Terraform이 설정)
 ALB_DNS = os.getenv('ALB_DNS', 'delightful-deploy-alb-1219635926.ap-northeast-2.elb.amazonaws.com')
@@ -250,6 +251,118 @@ async def get_service_detail(service_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/services/{service_id}/metrics")
+async def get_service_metrics(service_id: str):
+    """특정 서비스의 실시간 CloudWatch 메트릭 조회"""
+    try:
+        from datetime import datetime, timedelta
+        
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(minutes=15)
+        
+        cluster_name = 'delightful-deploy-cluster'
+        service_name = f'user-app-{service_id}'
+        
+        dimensions = [
+            {'Name': 'ClusterName', 'Value': cluster_name},
+            {'Name': 'ServiceName', 'Value': service_name}
+        ]
+        
+        # CPU Utilization
+        cpu_response = cloudwatch.get_metric_statistics(
+            Namespace='AWS/ECS',
+            MetricName='CPUUtilization',
+            Dimensions=dimensions,
+            StartTime=start_time,
+            EndTime=end_time,
+            Period=60,
+            Statistics=['Average']
+        )
+        
+        # Memory Utilization
+        mem_response = cloudwatch.get_metric_statistics(
+            Namespace='AWS/ECS',
+            MetricName='MemoryUtilization',
+            Dimensions=dimensions,
+            StartTime=start_time,
+            EndTime=end_time,
+            Period=60,
+            Statistics=['Average']
+        )
+        
+        # 데이터 포인트 매핑 (시간을 키로 사용)
+        metrics_dict = {}
+        
+        for dp in cpu_response.get('Datapoints', []):
+            time_str = dp['Timestamp'].strftime('%H:%M')
+            metrics_dict[time_str] = {'time': time_str, 'cpu': round(dp['Average'], 2), 'mem': 0.0}
+            
+        for dp in mem_response.get('Datapoints', []):
+            time_str = dp['Timestamp'].strftime('%H:%M')
+            if time_str in metrics_dict:
+                metrics_dict[time_str]['mem'] = round(dp['Average'], 2)
+            else:
+                metrics_dict[time_str] = {'time': time_str, 'cpu': 0.0, 'mem': round(dp['Average'], 2)}
+                
+        # 시간순 정렬
+        sorted_metrics = [metrics_dict[k] for k in sorted(metrics_dict.keys())]
+        
+        # 데이터가 없으면 0으로 채워진 빈 데이터 1개 반환
+        if not sorted_metrics:
+            time_str = end_time.strftime('%H:%M')
+            sorted_metrics = [{'time': time_str, 'cpu': 0.0, 'mem': 0.0}]
+            
+        return {
+            "success": True,
+            "metrics": sorted_metrics
+        }
+        
+    except Exception as e:
+        print(f"Error fetching CloudWatch metrics: {e}")
+        return {"success": False, "error": str(e), "logs": []}
+
+
+@app.get("/api/deploy/{service_id}/github-actions")
+async def get_github_actions_status(service_id: str):
+    """GitHub Actions 파이프라인의 실시간 Job 상태 조회"""
+    try:
+        response = deployment_table.get_item(Key={'deployment_id': service_id})
+        if 'Item' not in response:
+            raise HTTPException(status_code=404, detail="Service not found")
+            
+        item = response['Item']
+        run_id = item.get('github_run_id')
+        
+        if not run_id:
+            return {"success": True, "jobs": [], "message": "GitHub run_id not yet available"}
+            
+        if not GITHUB_TOKEN:
+            return {"success": False, "error": "GITHUB_TOKEN not configured"}
+            
+        mango_repo = MANGO_REPO
+        url = f"{GITHUB_API_URL}/repos/{mango_repo}/actions/runs/{run_id}/jobs"
+        
+        import urllib.request
+        import json
+        req = urllib.request.Request(url, headers={
+            "Authorization": f"Bearer {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json"
+        })
+        
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read().decode())
+            
+        return {
+            "success": True,
+            "jobs": data.get("jobs", []),
+            "run_id": run_id,
+            "url": f"https://github.com/{mango_repo}/actions/runs/{run_id}"
+        }
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 @app.get("/api/garden")

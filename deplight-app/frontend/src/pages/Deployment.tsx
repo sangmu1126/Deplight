@@ -1,12 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, RefreshCw, ExternalLink, Download, Sprout, CheckCircle2, Moon, Loader2, AlertCircle, Bot } from 'lucide-react';
-import MetricsChart from '../components/MetricsChart';
+import { CheckCircle2, Moon, Loader2, AlertCircle, RefreshCw, Sprout, Download, ExternalLink, ArrowLeft, Bot } from 'lucide-react';
 import type { Plant } from '../components/AppCard';
 import './Deployment.css';
+import MetricsChart from '../components/MetricsChart';
+import PipelineMonitor from '../components/PipelineMonitor';
+import GithubActionModal from '../components/GithubActionModal';
 
 interface DeploymentProps {
   plant: Plant;
   onBack: () => void;
+  onSettings?: () => void;
 }
 
 interface LogEntry {
@@ -32,12 +35,17 @@ const timeAgo = (date: Date) => {
   return "방금 전";
 };
 
-const Deployment = ({ plant, onBack }: DeploymentProps) => {
+const Deployment = ({ plant, onBack, onSettings }: DeploymentProps) => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [cpuData, setCpuData] = useState<{time: string, cpu: number}[]>([]);
   const [memData, setMemData] = useState<{time: string, mem: number}[]>([]);
   const [currentPlant, setCurrentPlant] = useState<Plant>(plant);
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const [progress, setProgress] = useState(0);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [totalSteps, setTotalSteps] = useState(8);
+  const [isRedeploying, setIsRedeploying] = useState(false);
+  const [isGithubModalOpen, setIsGithubModalOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -57,6 +65,10 @@ const Deployment = ({ plant, onBack }: DeploymentProps) => {
              const newStatus = data.status === 'success' ? 'HEALTHY' : 
                                data.status === 'failed' ? 'ERROR' : 'DEPLOYING';
              setCurrentPlant(prev => prev.status !== newStatus ? { ...prev, status: newStatus } : prev);
+             
+             setProgress(data.progress || 0);
+             setCurrentStep(data.current_step || 0);
+             setTotalSteps(data.total_steps || 8);
           }
           
           if (data.logs && Array.isArray(data.logs)) {
@@ -89,17 +101,34 @@ const Deployment = ({ plant, onBack }: DeploymentProps) => {
   const [chartData, setChartData] = useState<{time: string, cpu: number, mem: number}[]>([]);
 
   useEffect(() => {
-    // Generate mock metrics for the chart over time
-    const interval = setInterval(() => {
-      const time = new Date().toLocaleTimeString([], {hour12: false, second: '2-digit', minute: '2-digit'});
-      const cpu = Math.floor(Math.random() * 20 + 35);
-      const mem = Math.floor(Math.random() * 30 + 50);
-      setChartData(prev => [...prev, { time, cpu, mem }].slice(-20));
-      setCpuData(prev => [...prev, { time, cpu }].slice(-20)); // Keep for current values
-      setMemData(prev => [...prev, { time, mem }].slice(-20));
-    }, 3000);
+    if (!currentPlant?.id) return;
+
+    const fetchMetrics = async () => {
+      try {
+        const response = await fetch(`/api/services/${currentPlant.id}/metrics`);
+        if (!response.ok) throw new Error('Metrics fetch failed');
+        
+        const data = await response.json();
+        if (data.success && data.metrics && data.metrics.length > 0) {
+          setChartData(data.metrics);
+          
+          // Update current values from the latest data point
+          const latest = data.metrics[data.metrics.length - 1];
+          setCpuData(prev => [...prev, { time: latest.time, cpu: latest.cpu }].slice(-20));
+          setMemData(prev => [...prev, { time: latest.time, mem: latest.mem }].slice(-20));
+        }
+      } catch (err) {
+        console.error('Failed to fetch metrics:', err);
+      }
+    };
+
+    // Initial fetch
+    fetchMetrics();
+
+    // Poll every 10 seconds
+    const interval = setInterval(fetchMetrics, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [currentPlant?.id]);
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -116,6 +145,37 @@ const Deployment = ({ plant, onBack }: DeploymentProps) => {
   // 더미 메트릭스 (현재 값)
   const currentCpu = cpuData.length > 0 ? cpuData[cpuData.length - 1].cpu : 45;
   const currentMem = memData.length > 0 ? memData[memData.length - 1].mem : 62;
+
+  const handleRedeploy = async () => {
+    if (!currentPlant.gitUrl) return;
+    setIsRedeploying(true);
+    try {
+      const response = await fetch('/api/deploy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repository: currentPlant.gitUrl,
+          branch: currentPlant.branch || 'main',
+          framework: 'Unknown'
+        })
+      });
+
+      if (!response.ok) throw new Error('Deployment failed');
+      
+      const data = await response.json();
+      if (data.deployment_id) {
+        // Just update current ID so the useEffect fetches new status
+        setCurrentPlant(prev => ({ ...prev, id: data.deployment_id, status: 'DEPLOYING' }));
+        setLogs([]);
+        setProgress(0);
+        setCurrentStep(0);
+      }
+    } catch (error) {
+      console.error('Failed to redeploy:', error);
+    } finally {
+      setIsRedeploying(false);
+    }
+  };
 
   return (
     <div className="deployment-page">
@@ -191,11 +251,32 @@ const Deployment = ({ plant, onBack }: DeploymentProps) => {
           </div>
           
           <div className="info-actions">
-            <button className="btn btn-primary btn-full">재배포</button>
-            <button className="btn btn-secondary btn-full">설정</button>
+            <button className="btn btn-primary btn-full" onClick={handleRedeploy} disabled={isRedeploying}>
+              {isRedeploying ? '재배포 요청 중...' : '재배포'}
+            </button>
+            <button className="btn btn-secondary btn-full" onClick={() => onSettings && onSettings()}>설정</button>
           </div>
         </div>
       </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 32px', marginBottom: '16px' }}>
+        <button 
+          className="btn btn-secondary" 
+          style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', padding: '8px 16px' }}
+          onClick={() => setIsGithubModalOpen(true)}
+        >
+          <span>⚙️</span> GitHub Actions 
+        </button>
+      </div>
+
+      {isGithubModalOpen && (
+        <GithubActionModal 
+          deploymentId={currentPlant.id} 
+          onClose={() => setIsGithubModalOpen(false)} 
+        />
+      )}
+
+      <PipelineMonitor progress={progress} currentStep={currentStep} totalSteps={totalSteps} status={currentPlant.status} />
 
       {/* Bottom Grid: Metrics & Logs */}
       <div className="deploy-grid">

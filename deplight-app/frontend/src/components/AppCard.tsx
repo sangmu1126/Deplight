@@ -9,6 +9,7 @@ export interface Plant {
   updatedAt: Date;
   gitUrl?: string;
   plantType: 'pot' | 'rose' | 'sunflower';
+  branch?: string;
   aiInsight?: string;
 }
 

@@ -1,0 +1,157 @@
+.github-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+}
+
+.github-modal-content {
+  background: #1a1b26;
+  width: 90%;
+  max-width: 650px;
+  border-radius: 12px;
+  border: 1px solid #2f334d;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+}
+
+.github-modal-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid #2f334d;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.github-modal-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: #a9b1d6;
+  font-size: 24px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.close-btn:hover {
+  color: #f7768e;
+}
+
+.github-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.github-jobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.github-job {
+  background: #24283b;
+  border: 1px solid #2f334d;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: transform 0.2s;
+}
+
+.github-job:hover {
+  transform: translateX(5px);
+}
+
+.job-status-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.success-icon { color: #9ece6a; }
+.failure-icon { color: #f7768e; }
+.queued-icon { color: #7aa2f7; }
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #2f334d;
+  border-top-color: #7aa2f7;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin { 100% { transform: rotate(360deg); } }
+
+.job-details {
+  flex: 1;
+}
+
+.job-name {
+  color: #c0caf5;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.job-time {
+  color: #565f89;
+  font-size: 0.85rem;
+}
+
+.job-state-text {
+  font-size: 0.85rem;
+  color: #7aa2f7;
+  text-transform: capitalize;
+  font-weight: 500;
+}
+
+.github-job.success .job-state-text { color: #9ece6a; }
+.github-job.failure .job-state-text { color: #f7768e; }
+
+.github-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #2f334d;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.github-link-btn {
+  background: #3d59a1;
+  color: white;
+  text-decoration: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.github-link-btn:hover {
+  background: #7aa2f7;
+}
+
+.github-loading, .github-waiting, .github-error {
+  text-align: center;
+  color: #a9b1d6;
+  padding: 40px;
+}
+.github-error { color: #f7768e; }

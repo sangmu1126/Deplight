@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { ServerCrash } from 'lucide-react';
 import AppCard, { type Plant } from '../components/AppCard';
 import { mapServiceToPlant, type FastAPIServiceDTO } from '../utils/mappers';
@@ -83,12 +83,14 @@ const Dashboard = ({ onSelectPlant, workspaceId }: DashboardProps) => {
 
       if (!response.ok) throw new Error('Deployment failed');
       
+      const responseData = await response.json();
+      
       // Close modal and reset
       setIsDeployModalOpen(false);
       setRepoUrl('');
       setBranch('main');
       
-      // Fetch immediately to show the new deployment
+      // Fetch immediately to update the list, but also auto-navigate!
       fetch('/api/services')
         .then(res => res.json())
         .then(data => {
@@ -97,9 +99,23 @@ const Dashboard = ({ onSelectPlant, workspaceId }: DashboardProps) => {
           }
         });
 
+      // Auto-navigate to the new deployment status view!
+      if (responseData.deployment_id) {
+        onSelectPlant({
+          id: responseData.deployment_id,
+          description: 'New App',
+          version: repoUrl.split('/').pop()?.replace('.git', '') || 'Unknown Version',
+          branch: branch || 'main',
+          status: 'DEPLOYING',
+          gitUrl: repoUrl,
+          updatedAt: new Date(),
+          plantType: 'pot'
+        });
+      }
+
     } catch (error) {
-      console.error('Error starting deployment:', error);
-      alert('배포 시작에 실패했습니다.');
+      console.error('Failed to trigger deployment:', error);
+      alert('Failed to start deployment');
     } finally {
       setIsDeploying(false);
     }

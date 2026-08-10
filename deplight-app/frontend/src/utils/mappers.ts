@@ -48,12 +48,13 @@ const determinePlantType = (framework?: string): Plant['plantType'] => {
 
 export const mapServiceToPlant = (dto: FastAPIServiceDTO): Plant => {
   return {
-    id: dto.id,
+    id: dto.id || `unknown-${Math.random().toString(36).substring(7)}`,
     version: dto.name || 'Unknown Version',
     description: dto.description || `${dto.framework || 'Unknown'} Application`,
     status: mapStatus(dto.status),
     updatedAt: new Date(dto.deployedAt),
     gitUrl: dto.repository,
+    branch: dto.branch || 'main',
     plantType: determinePlantType(dto.framework)
   };
 };

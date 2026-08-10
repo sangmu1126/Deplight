@@ -12,6 +12,7 @@ function App() {
   const [authState, setAuthState] = useState<'login' | 'workspace' | 'app'>('login');
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string>('');
+  const [showSettings, setShowSettings] = useState(false);
 
   // If not logged in
   if (authState === 'login') {
@@ -49,7 +50,7 @@ function App() {
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-          <button style={{ background: 'transparent', border: 'none', color: '#64748B', cursor: 'pointer' }}>
+          <button style={{ background: 'transparent', border: 'none', color: '#64748B', cursor: 'pointer' }} onClick={() => setShowSettings(true)}>
             <Bell size={18} />
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -66,10 +67,13 @@ function App() {
       </header>
       
       <main className="main-content" style={{ background: '#F8F9FE', minHeight: 'calc(100vh - 70px)' }}>
-        {selectedPlant ? (
+        {showSettings ? (
+          <Settings onBack={() => setShowSettings(false)} />
+        ) : selectedPlant ? (
           <Deployment 
             plant={selectedPlant} 
             onBack={() => setSelectedPlant(null)} 
+            onSettings={() => setShowSettings(true)}
           />
         ) : (
           <Dashboard 
