@@ -79,7 +79,7 @@ variable "max_capacity" {
 variable "ecr_repository_url" {
   description = "ECR repository URL"
   type        = string
-  default     = "513348493870.dkr.ecr.ap-northeast-2.amazonaws.com/delightful-deploy"
+  default     = "265233844540.dkr.ecr.ap-northeast-2.amazonaws.com/delightful-deploy"
 }
 
 variable "image_tag" {
@@ -200,19 +200,19 @@ variable "use_existing_roles" {
 variable "ecs_execution_role_arn" {
   description = "Existing ECS execution role ARN (required if use_existing_roles=true)"
   type        = string
-  default     = "arn:aws:iam::513348493870:role/delightful-deploy-ecs-execution-role"
+  default     = "arn:aws:iam::265233844540:role/delightful-deploy-ecs-execution-role"
 }
 
 variable "ecs_task_role_arn" {
   description = "Existing ECS task role ARN (required if use_existing_roles=true)"
   type        = string
-  default     = "arn:aws:iam::513348493870:role/delightful-deploy-ecs-task-role"
+  default     = "arn:aws:iam::265233844540:role/delightful-deploy-ecs-task-role"
 }
 
 variable "lambda_analyzer_role_arn" {
   description = "Existing Lambda analyzer role ARN (required if use_existing_roles=true)"
   type        = string
-  default     = "arn:aws:iam::513348493870:role/delightful-deploy-lambda-analyzer-role"
+  default     = "arn:aws:iam::265233844540:role/delightful-deploy-lambda-analyzer-role"
 }
 
 variable "create_log_groups" {
