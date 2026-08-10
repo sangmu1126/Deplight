@@ -586,7 +586,6 @@ jobs:
             TF_VARS="$TF_VARS -var=user_app_path_prefix=${{ steps.prepare-vars.outputs.path_prefix }}"
             TF_VARS="$TF_VARS -var=user_app_alb_name=delightful-deploy-alb"
             TF_VARS="$TF_VARS -var=user_app_ecs_cluster_name=${{ env.ECS_CLUSTER }}"
-            TF_VARS="$TF_VARS -var=user_app_security_group_id=${{ secrets.ECS_SECURITY_GROUP }}"
           fi
 
           # Persist args for Apply step
