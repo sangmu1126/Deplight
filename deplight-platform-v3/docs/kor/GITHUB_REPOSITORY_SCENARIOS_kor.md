@@ -22,7 +22,7 @@ Deplight 플랫폼은 GitHub Actions의 `workflow_dispatch` 이벤트를 사용�
   - 개인 토이 프로젝트나 사이드 프로젝트를 빠르게 배포 가능
   - 별도로 조직에 속하거나 권한을 얻을 필요가 없음
   - 테스트 및 프로토타입 용도로 이상적
-- ✅ **URL 예시**: `https://github.com/sabill123/sb_test_2`
+- ✅ **URL 예시**: `https://github.com/sangmu1126/deployment_test_py`
 
 ### 3️⃣ **Fork된 저장소**
 - ✅ **지원 여부**: 원본 저장소를 개인이나 다른 조직으로 Fork한 코드도 배포 가능
@@ -140,7 +140,7 @@ curl http://delightful-deploy-alb-796875577.ap-northeast-2.elb.amazonaws.com/
 
 ---
 
-### 👤 **시나리오 2: 개인 저장소 배포 (예: sabill123/sb_test_2)**
+### 👤 **시나리오 2: 개인 저장소 배포 (예: sangmu1126/deployment_test_py)**
 
 #### **주요 사용 사례**
 - 회사나 조직과 무관한 개인 사이드 프로젝트 배포
@@ -149,7 +149,7 @@ curl http://delightful-deploy-alb-796875577.ap-northeast-2.elb.amazonaws.com/
 
 #### **저장소 예시**
 ```
-https://github.com/sabill123/sb_test_2
+https://github.com/sangmu1126/deployment_test_py
 ```
 
 #### **배포 단계**
@@ -158,7 +158,7 @@ https://github.com/sabill123/sb_test_2
 
 **Option A: Public 저장소 (가장 권장함 - 매우 간단함)**
 ```text
-1. GitHub에서 본인 계정으로 새 저장소 생성 (예: sabill123/sb_test_2)
+1. GitHub에서 본인 계정으로 새 저장소 생성 (예: sangmu1126/deployment_test_py)
 2. Settings → Visibility 메뉴에서 저장소를 'Public'으로 설정
 3. 개발한 코드를 origin main에 푸시(Push)
 ```
@@ -178,7 +178,7 @@ https://github.com/sabill123/sb_test_2
 **Step 2: Dashboard에서 배포 요청**
 ```text
 대시보드 접속 → "새 배포" 클릭
-├─ Repository URL 란에: https://github.com/sabill123/sb_test_2 입력
+├─ Repository URL 란에: https://github.com/sangmu1126/deployment_test_py 입력
 ├─ Branch: main
 └─ 배포 시작 버튼 클릭
 ```

@@ -22,7 +22,7 @@ Deplight Platform은 GitHub Actions의 `workflow_dispatch` 이벤트를 사용�
   - 개인 프로젝트 빠른 배포
   - 별도의 조직 권한 불필요
   - 테스트 및 프로토타입에 이상적
-- ✅ **예시**: `https://github.com/sabill123/sb_test_2`
+- ✅ **예시**: `https://github.com/sangmu1126/deployment_test_py`
 
 ### 3️⃣ **Fork된 저장소**
 - ✅ **지원**: 원본 저장소를 fork한 경우도 배포 가능
@@ -148,7 +148,7 @@ SLACK_WEBHOOK_URL: (선택사항)
 
 ---
 
-### 👤 **시나리오 2: 개인 저장소 배포 (sabill123/sb_test_2)**
+### 👤 **시나리오 2: 개인 저장소 배포 (sangmu1126/deployment_test_py)**
 
 #### **사용 사례**
 - 개인 사이드 프로젝트 배포
@@ -157,7 +157,7 @@ SLACK_WEBHOOK_URL: (선택사항)
 
 #### **저장소 예시**
 ```
-https://github.com/sabill123/sb_test_2
+https://github.com/sangmu1126/deployment_test_py
 ```
 
 #### **배포 단계**
@@ -167,7 +167,7 @@ https://github.com/sabill123/sb_test_2
 **Option A: Public 저장소 (권장 - 간단함)**
 ```bash
 # GitHub에서 저장소 생성
-https://github.com/sabill123/sb_test_2
+https://github.com/sangmu1126/deployment_test_py
 
 # Public으로 설정
 Settings → Visibility → Public
@@ -197,7 +197,7 @@ Softbank-mango/deplight-platform
 **Step 2: Dashboard에서 배포**
 ```
 Dashboard → "새 배포" 클릭
-├─ Repository URL: https://github.com/sabill123/sb_test_2
+├─ Repository URL: https://github.com/sangmu1126/deployment_test_py
 ├─ Branch: main
 └─ 배포 시작
 ```
@@ -330,7 +330,7 @@ Endpoints: /products, /orders, /health
 
 ### **개인 저장소 (테스트 준비)**
 ```bash
-# sabill123/sb_test_2 (현재 404 - 저장소 생성 필요)
+# sangmu1126/deployment_test_py (현재 404 - 저장소 생성 필요)
 
 # 생성 후 테스트 가능:
 1. GitHub에서 sb_test_2 저장소 생성 (Public)
@@ -370,8 +370,8 @@ A: 네, 가능합니다!
 
    예시:
    1. 원본: github.com/original/repo
-   2. Fork: github.com/sabill123/repo (Fork)
-   3. 배포 URL: https://github.com/sabill123/repo
+   2. Fork: github.com/sangmu1126/repo (Fork)
+   3. 배포 URL: https://github.com/sangmu1126/repo
    4. ✅ 정상 배포됨
 ```
 
