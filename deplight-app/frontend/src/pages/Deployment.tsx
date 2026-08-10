@@ -45,7 +45,7 @@ const Deployment = ({ plant, onBack, onSettings }: DeploymentProps) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [totalSteps, setTotalSteps] = useState(8);
   const [isRedeploying, setIsRedeploying] = useState(false);
-  const [isGithubModalOpen, setIsGithubModalOpen] = useState(false);
+  const [isGithubModalOpen, setIsGithubModalOpen] = useState(plant.status === 'DEPLOYING');
 
   useEffect(() => {
     let isMounted = true;

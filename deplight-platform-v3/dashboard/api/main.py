@@ -211,7 +211,7 @@ async def get_service_detail(service_id: str):
     try:
         # 배포 히스토리에서 조회
         response = deployment_table.get_item(
-            Key={'deployment_id': service_id}
+            Key={'id': service_id}
         )
 
         if 'Item' not in response:
@@ -328,7 +328,7 @@ async def get_service_metrics(service_id: str):
 async def get_github_actions_status(service_id: str):
     """GitHub Actions 파이프라인의 실시간 Job 상태 조회"""
     try:
-        response = deployment_table.get_item(Key={'deployment_id': service_id})
+        response = deployment_table.get_item(Key={'id': service_id})
         if 'Item' not in response:
             raise HTTPException(status_code=404, detail="Service not found")
             
