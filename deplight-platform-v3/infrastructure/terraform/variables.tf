@@ -370,5 +370,5 @@ variable "user_app_ecs_cluster_name" {
 variable "user_app_security_group_id" {
   description = "Security group ID for user app ECS tasks"
   type        = string
-  default     = ""
+  default     = "sg-0b183ee9f2004deee"
 }
