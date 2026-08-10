@@ -15,6 +15,10 @@ import threading
 import json
 import requests
 from pathlib import Path
+from dotenv import load_dotenv
+
+# .env 파일에서 환경변수 로드
+load_dotenv()
 
 app = FastAPI(
     title="Delightful Deploy Dashboard",
@@ -300,7 +304,7 @@ async def start_deployment(deployment: dict):
             raise HTTPException(status_code=400, detail="Repository is required")
 
         # Repository URL에서 owner/repo 추출
-        # 예: https://github.com/sabill123/sb_test_2 -> sabill123/sb_test_2
+        # 예: https://github.com/sangmu1126/deployment_test_py -> sangmu1126/deployment_test_py
         if repository.startswith('http'):
             repo_parts = repository.rstrip('.git').split('/')
             owner = repo_parts[-2]
