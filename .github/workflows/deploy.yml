@@ -39,7 +39,7 @@ env:
   ECR_REPOSITORY: delightful-deploy
   ECS_CLUSTER: delightful-deploy-cluster
   ECS_SERVICE: delightful-deploy-service
-  S3_ARTIFACTS_BUCKET: deplight-platform-artifacts-apne2
+  S3_ARTIFACTS_BUCKET: delightful-deploy-artifacts-265233844540
   SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
   SLACK_CHANNEL: C09RMAJJU5T  # #slack-전체
 
