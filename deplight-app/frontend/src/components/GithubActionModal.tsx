@@ -1,12 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import './GithubActionModal.css';
 
+interface Step {
+  name: string;
+  status: string;
+  conclusion: string | null;
+  number: number;
+}
+
 interface Job {
   name: string;
   status: string;
   conclusion: string | null;
   started_at: string;
   completed_at: string | null;
+  steps?: Step[];
 }
 
 interface Props {
@@ -65,23 +73,41 @@ const GithubActionModal: React.FC<Props> = ({ deploymentId, onClose }) => {
           ) : (
             <div className="github-jobs-list">
               {jobs.map((job, idx) => (
-                <div key={idx} className={`github-job ${job.status} ${job.conclusion || ''}`}>
-                  <div className="job-status-icon">
-                    {job.status === 'in_progress' && <div className="spinner"></div>}
-                    {job.conclusion === 'success' && <span className="success-icon">✓</span>}
-                    {job.conclusion === 'failure' && <span className="failure-icon">✗</span>}
-                    {job.status === 'queued' && <span className="queued-icon">○</span>}
-                  </div>
-                  <div className="job-details">
-                    <div className="job-name">{job.name}</div>
-                    <div className="job-time">
-                      {job.started_at && new Date(job.started_at).toLocaleTimeString()} 
-                      {job.completed_at && ` - ${new Date(job.completed_at).toLocaleTimeString()}`}
+                <div key={idx} className="github-job-container">
+                  <div className={`github-job ${job.status} ${job.conclusion || ''}`}>
+                    <div className="job-status-icon">
+                      {job.status === 'in_progress' && <div className="spinner"></div>}
+                      {job.conclusion === 'success' && <span className="success-icon">✓</span>}
+                      {job.conclusion === 'failure' && <span className="failure-icon">✗</span>}
+                      {job.status === 'queued' && <span className="queued-icon">○</span>}
+                    </div>
+                    <div className="job-details">
+                      <div className="job-name">{job.name}</div>
+                      <div className="job-time">
+                        {job.started_at && new Date(job.started_at).toLocaleTimeString()} 
+                        {job.completed_at && ` - ${new Date(job.completed_at).toLocaleTimeString()}`}
+                      </div>
+                    </div>
+                    <div className="job-state-text">
+                      {job.status === 'in_progress' ? 'In Progress' : job.conclusion || job.status}
                     </div>
                   </div>
-                  <div className="job-state-text">
-                    {job.status === 'in_progress' ? 'In Progress' : job.conclusion || job.status}
-                  </div>
+                  
+                  {job.steps && job.steps.length > 0 && (
+                    <div className="job-steps">
+                      {job.steps.map((step, sIdx) => (
+                        <div key={sIdx} className={`job-step ${step.status} ${step.conclusion || ''}`}>
+                          <div className="step-icon">
+                            {step.status === 'in_progress' && <div className="spinner-small"></div>}
+                            {step.conclusion === 'success' && <span className="success-icon-small">✓</span>}
+                            {step.conclusion === 'failure' && <span className="failure-icon-small">✗</span>}
+                            {step.status === 'queued' && <span className="queued-icon-small">○</span>}
+                          </div>
+                          <div className="step-name">{step.name}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

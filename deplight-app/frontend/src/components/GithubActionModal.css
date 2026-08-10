@@ -155,3 +155,81 @@
   padding: 40px;
 }
 .github-error { color: #f7768e; }
+
+.github-job-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: #24283b;
+  border: 1px solid #2f334d;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: transform 0.2s;
+}
+
+.github-job-container:hover {
+  transform: translateX(5px);
+}
+
+.github-job {
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.github-job:hover {
+  transform: none;
+}
+
+.job-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 16px 16px 48px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.job-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: #1a1b26;
+  border-radius: 4px;
+  border-left: 2px solid #2f334d;
+}
+
+.job-step.success { border-left-color: #9ece6a; }
+.job-step.failure { border-left-color: #f7768e; }
+.job-step.in_progress { border-left-color: #7aa2f7; }
+
+.step-icon {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+
+.success-icon-small { color: #9ece6a; }
+.failure-icon-small { color: #f7768e; }
+.queued-icon-small { color: #7aa2f7; }
+
+.spinner-small {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #2f334d;
+  border-top-color: #7aa2f7;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.step-name {
+  color: #a9b1d6;
+  font-size: 0.85rem;
+}
