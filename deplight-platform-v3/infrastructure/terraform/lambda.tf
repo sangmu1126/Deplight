@@ -3,7 +3,7 @@ resource "aws_lambda_function" "ai_analyzer" {
   function_name = "${var.app_name}-ai-analyzer"
   role          = var.use_existing_roles ? var.lambda_analyzer_role_arn : aws_iam_role.lambda_analyzer[0].arn
   handler       = "handler.lambda_handler"
-  runtime       = "python3.11"
+  runtime       = "python3.12"
   timeout       = 900  # 15 minutes for comprehensive analysis
   memory_size   = 1024
 
