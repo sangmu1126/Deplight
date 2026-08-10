@@ -394,7 +394,7 @@ jobs:
           if [ -n "${{ github.event.inputs.target_repository }}" ]; then
             BUILD_PATH="user_repo"
           else
-            BUILD_PATH="./dashboard"
+            BUILD_PATH="./deplight-platform-v3/dashboard"
           fi
           DOCKERFILE_PATH="$BUILD_PATH/Dockerfile"
           echo "build-path=${BUILD_PATH}" >> $GITHUB_OUTPUT
@@ -519,7 +519,7 @@ jobs:
           terraform_wrapper: false  # Disable wrapper to get clean outputs
 
       - name: Terraform Init
-        working-directory: ./infrastructure/terraform
+        working-directory: ./deplight-platform-v3/infrastructure/terraform
         run: terraform init
 
       - name: Prepare Terraform variables for user app
@@ -557,7 +557,7 @@ jobs:
           fi
 
       - name: Terraform Plan
-        working-directory: ./infrastructure/terraform
+        working-directory: ./deplight-platform-v3/infrastructure/terraform
         run: |
           # Base variables for all deployments
           TF_VARS="-var=image_tag=${{ needs.build-and-test.outputs.image-tag }}"
@@ -599,7 +599,7 @@ jobs:
           fi
 
       - name: Terraform Apply
-        working-directory: ./infrastructure/terraform
+        working-directory: ./deplight-platform-v3/infrastructure/terraform
         run: |
           if [ "${{ steps.prepare-vars.outputs.deploy_user_app }}" = "true" ]; then
             echo "Applying only user_app module with -target (direct apply with vars)"
@@ -611,7 +611,7 @@ jobs:
 
       - name: Extract Terraform outputs
         id: tf-outputs
-        working-directory: ./infrastructure/terraform
+        working-directory: ./deplight-platform-v3/infrastructure/terraform
         run: |
           if [ "${{ steps.prepare-vars.outputs.deploy_user_app }}" = "true" ]; then
             # Extract user app outputs
