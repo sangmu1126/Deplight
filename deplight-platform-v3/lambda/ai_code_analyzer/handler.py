@@ -944,11 +944,17 @@ def _extract_section(content: str, delimiter: str) -> str:
     start_idx += len(start_marker)
     end_idx = content.find(end_marker, start_idx)
 
-    if end_idx == -1:
-        return content[start_idx:].strip()
-
-    return content[start_idx:end_idx].strip()
-
+    extracted = content[start_idx:end_idx].strip() if end_idx != -1 else content[start_idx:].strip()
+    
+    # Strip markdown code blocks if the LLM wrapped the content in them
+    if extracted.startswith("```"):
+        first_newline = extracted.find("\n")
+        if first_newline != -1:
+            extracted = extracted[first_newline+1:].strip()
+        if extracted.endswith("```"):
+            extracted = extracted[:-3].strip()
+            
+    return extracted
 
 def _extract_code_block(content: str, language: str, context: str = "") -> str:
     """Extract code from markdown code blocks"""
@@ -968,10 +974,8 @@ def _extract_code_block(content: str, language: str, context: str = "") -> str:
     start_idx += len(marker)
     end_idx = content.find("```", start_idx)
 
-    if end_idx == -1:
-        return content[start_idx:].strip()
-
-    return content[start_idx:end_idx].strip()
+    extracted = content[start_idx:end_idx].strip() if end_idx != -1 else content[start_idx:].strip()
+    return extracted
 
 
 def _get_cpu_from_complexity(complexity: str) -> int:
