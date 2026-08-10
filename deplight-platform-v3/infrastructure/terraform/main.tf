@@ -138,11 +138,11 @@ resource "aws_security_group" "ecs_tasks" {
   vpc_id      = var.vpc_id
 
   ingress {
-    from_port       = var.container_port
-    to_port         = var.container_port
+    from_port       = 0
+    to_port         = 65535
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
-    description     = "Allow traffic from ALB"
+    description     = "Allow all TCP traffic from ALB"
   }
 
   egress {
