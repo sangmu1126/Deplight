@@ -33,8 +33,6 @@ const mapStatus = (apiStatus: string): Plant['status'] => {
       return 'ERROR';
     case 'sleeping':
       return 'SLEEPING';
-    case 'unknown':
-      return 'DEPLOYING';
     default:
       return 'ERROR'; // Safe fallback
   }

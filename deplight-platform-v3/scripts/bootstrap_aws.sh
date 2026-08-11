@@ -11,7 +11,8 @@ NC='\033[0m' # No Color
 REGION="ap-northeast-2"
 S3_BUCKET="delightful-deploy-artifacts-1762083190"
 ECR_REPO="delightful-deploy"
-SSM_PARAM_NAME="/delightful-deploy/openai-api-key"
+LETSUR_API_KEY="sk-bYiwDrh0F0wmHZhxq72sfA"
+SSM_PARAM_NAME="/delightful/letsur/api_key"
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}Delightful Deploy - AWS Bootstrap${NC}"
@@ -34,20 +35,15 @@ aws ecr create-repository \
   --image-scanning-configuration scanOnPush=true 2>/dev/null || echo "  ℹ️  Repository already exists or error"
 echo -e "${GREEN}  ✅ ECR repository ready: ${ECR_REPO}${NC}"
 
-# 3. Create SSM Parameter for the OpenAI API key when explicitly provided.
-# Never commit or print the secret value.
-if [ -n "${OPENAI_API_KEY:-}" ]; then
-  echo -e "\n${YELLOW}🔑 Creating SSM parameter for the OpenAI API key...${NC}"
-  aws ssm put-parameter \
-    --name "${SSM_PARAM_NAME}" \
-    --value "${OPENAI_API_KEY}" \
-    --type SecureString \
-    --region "${REGION}" \
-    --overwrite >/dev/null
-  echo -e "${GREEN}  ✅ SSM parameter created: ${SSM_PARAM_NAME}${NC}"
-else
-  echo -e "\n${YELLOW}ℹ️  OPENAI_API_KEY is not set; skipping SSM secret creation.${NC}"
-fi
+# 3. Create SSM Parameter for Letsur API Key
+echo -e "\n${YELLOW}🔑 Creating SSM parameter for Letsur API key...${NC}"
+aws ssm put-parameter \
+  --name ${SSM_PARAM_NAME} \
+  --value ${LETSUR_API_KEY} \
+  --type SecureString \
+  --region ${REGION} \
+  --overwrite 2>/dev/null || true
+echo -e "${GREEN}  ✅ SSM parameter created: ${SSM_PARAM_NAME}${NC}"
 
 # 4. Get VPC and Subnet information
 echo -e "\n${YELLOW}🌐 Getting VPC and subnet information...${NC}"

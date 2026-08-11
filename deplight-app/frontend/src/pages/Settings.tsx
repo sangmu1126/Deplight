@@ -1,21 +1,23 @@
 import { useState } from 'react';
-import { Key, Globe, Cloud, ShieldAlert, Save } from 'lucide-react';
-import { getDashboardApiKey, setDashboardApiKey } from '../api';
+import { Key, Globe, Cloud, ShieldAlert, Plus, Trash2 } from 'lucide-react';
+
+interface Secret {
+  id: string;
+  key: string;
+  value: string;
+}
 
 interface SettingsProps {
   onBack?: () => void;
 }
 
 const Settings = ({ onBack }: SettingsProps) => {
-  const [apiKey, setApiKey] = useState(getDashboardApiKey);
-  const [saved, setSaved] = useState(false);
-  const [isGithubConnected, setIsGithubConnected] = useState(true);
+  const [secrets] = useState<Secret[]>([
+    { id: '1', key: 'DATABASE_URL', value: 'postgresql://***' },
+    { id: '2', key: 'API_KEY', value: 'sk-***' },
+  ]);
 
-  const saveApiKey = () => {
-    setDashboardApiKey(apiKey);
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 2000);
-  };
+  const [isGithubConnected, setIsGithubConnected] = useState(true);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -35,52 +37,31 @@ const Settings = ({ onBack }: SettingsProps) => {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '32px' }}>
-        {/* Left Column: Dashboard API access */}
+        {/* Left Column: Secrets */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div className="glass-panel" style={{ padding: '24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-              <Key style={{ color: 'var(--warning)' }} />
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>배포 API 키</h2>
-            </div>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '20px' }}>
-              조회 기능에는 필요하지 않습니다. 새 배포와 재배포를 실행할 때만 사용하며 현재 브라우저 세션에만 저장됩니다.
-            </p>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(event) => {
-                  setApiKey(event.target.value);
-                  setSaved(false);
-                }}
-                placeholder="Dashboard API key"
-                autoComplete="off"
-                style={{
-                  flex: 1,
-                  padding: '12px 14px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-subtle)',
-                  background: 'rgba(255,255,255,0.8)',
-                  color: 'var(--text-main)'
-                }}
-              />
-              <button className="btn btn-primary" onClick={saveApiKey}>
-                <Save size={16} /> {saved ? '저장됨' : '세션에 저장'}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <Key style={{ color: 'var(--warning)' }} />
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>시크릿 키 (Environment Variables)</h2>
+              </div>
+              <button className="btn btn-primary" style={{ padding: '6px 12px' }}>
+                <Plus size={16} /> 새 키 추가
               </button>
             </div>
-          </div>
 
-          <div className="glass-panel" style={{ padding: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <ShieldAlert style={{ color: 'var(--warning)' }} />
-                <div>
-                  <h2 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '4px' }}>로그인 없이 사용 중</h2>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>
-                    Dashboard 조회 화면은 공개되어 있습니다.
-                  </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {secrets.map(secret => (
+                <div key={secret.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-subtle)', borderRadius: '8px' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: '4px' }}>{secret.key}</div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontFamily: 'monospace' }}>{secret.value}</div>
+                  </div>
+                  <button className="btn btn-ghost" style={{ color: 'var(--danger)', padding: '8px' }}>
+                    <Trash2 size={16} />
+                  </button>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>

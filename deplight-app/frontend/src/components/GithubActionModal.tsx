@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import './GithubActionModal.css';
-import { apiFetch } from '../api';
 
 interface Step {
   name: string;
@@ -32,7 +31,7 @@ const GithubActionModal: React.FC<Props> = ({ deploymentId, onClose }) => {
   useEffect(() => {
     const fetchJobs = async () => {
       try {
-        const response = await apiFetch(`/deploy/${deploymentId}/github-actions`);
+        const response = await fetch(`/api/deploy/${deploymentId}/github-actions`);
         const data = await response.json();
         
         if (data.success) {
@@ -45,7 +44,7 @@ const GithubActionModal: React.FC<Props> = ({ deploymentId, onClose }) => {
           setError(data.error || 'Failed to fetch GitHub Actions');
           setLoading(false);
         }
-      } catch {
+      } catch (err) {
         setError('Network error');
         setLoading(false);
       }

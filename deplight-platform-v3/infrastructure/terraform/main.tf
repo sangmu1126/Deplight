@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.10.0"
+  required_version = ">= 1.5.0"
 
   required_providers {
     aws = {
@@ -8,13 +8,44 @@ terraform {
     }
   }
 
-  backend "s3" {
-    bucket       = "delightful-deploy-artifacts-265233844540"
-    key          = "terraform/v3/terraform.tfstate"
-    region       = "ap-northeast-2"
-    encrypt      = true
-    use_lockfile = true
+  # Backend Configuration
+  # Choose one of the following:
+
+  # Option 1: Local backend (default - uncommented)
+  # State file will be stored locally in terraform.tfstate
+  # Good for: Quick start, single developer, testing
+  backend "local" {
+    path = "terraform.tfstate"
   }
+
+  # Option 2: Terraform Cloud (comment out local backend above and uncomment this)
+  # State file managed remotely by Terraform Cloud
+  # Good for: Team collaboration, state locking, remote operations
+  # Prerequisites:
+  #   1. Create account at https://app.terraform.io
+  #   2. Create organization: delightful-deploy
+  #   3. Create workspace: delightful-deploy-dev
+  #   4. Set TF_API_TOKEN in GitHub Secrets
+  #
+  # cloud {
+  #   organization = "delightful-deploy"
+  #
+  #   workspaces {
+  #     name = "delightful-deploy-dev"
+  #   }
+  # }
+
+  # Option 3: S3 backend (uncomment this and comment out local backend)
+  # State file stored in S3 with DynamoDB locking
+  # Good for: Team collaboration without Terraform Cloud
+  #
+  # backend "s3" {
+  #   bucket         = "deplight-platform-tf-state"
+  #   key            = "terraform.tfstate"
+  #   region         = "ap-northeast-2"
+  #   encrypt        = true
+  #   dynamodb_table = "deplight-platform-tf-locks"
+  # }
 }
 
 provider "aws" {
@@ -107,11 +138,11 @@ resource "aws_security_group" "ecs_tasks" {
   vpc_id      = var.vpc_id
 
   ingress {
-    from_port       = var.container_port
-    to_port         = var.container_port
+    from_port       = 0
+    to_port         = 65535
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
-    description     = "Allow application traffic from ALB"
+    description     = "Allow all TCP traffic from ALB"
   }
 
   egress {
@@ -145,10 +176,6 @@ resource "aws_cloudwatch_log_group" "app" {
 resource "aws_s3_bucket" "artifacts" {
   count  = var.use_existing_artifacts_bucket ? 0 : 1
   bucket = "${var.app_name}-artifacts-${data.aws_caller_identity.current.account_id}"
-
-  lifecycle {
-    prevent_destroy = true
-  }
 
   tags = {
     Name = "${var.app_name}-artifacts"

@@ -1,7 +1,7 @@
 # ECS Task Execution Role
 resource "aws_iam_role" "ecs_execution_role" {
   count = var.use_existing_roles ? 0 : 1
-  name  = "${var.app_name}-ecs-execution-role"
+  name = "${var.app_name}-ecs-execution-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -43,10 +43,9 @@ resource "aws_iam_role_policy" "ecs_execution_ssm_policy" {
           "ssm:GetParameter"
         ]
         Resource = [
-          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${var.openai_api_key_param}",
+          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${var.letsur_api_key_param}",
           "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${var.slack_webhook_url_param}",
-          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${var.github_token_param}",
-          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${var.dashboard_api_key_param}"
+          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/delightful/github/token"
         ]
       }
     ]
@@ -56,7 +55,7 @@ resource "aws_iam_role_policy" "ecs_execution_ssm_policy" {
 # ECS Task Role (for application runtime permissions)
 resource "aws_iam_role" "ecs_task_role" {
   count = var.use_existing_roles ? 0 : 1
-  name  = "${var.app_name}-ecs-task-role"
+  name = "${var.app_name}-ecs-task-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -79,8 +78,8 @@ resource "aws_iam_role" "ecs_task_role" {
 # Task role policies for X-Ray, CloudWatch, DynamoDB
 resource "aws_iam_role_policy" "ecs_task_policy" {
   count = var.use_existing_roles ? 0 : 1
-  name  = "${var.app_name}-ecs-task-policy"
-  role  = aws_iam_role.ecs_task_role[0].id
+  name = "${var.app_name}-ecs-task-policy"
+  role = aws_iam_role.ecs_task_role[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -156,7 +155,7 @@ resource "aws_iam_role_policy_attachment" "codedeploy_policy" {
 # Lambda Execution Role for AI Analyzer
 resource "aws_iam_role" "lambda_analyzer" {
   count = var.use_existing_roles ? 0 : 1
-  name  = "${var.app_name}-lambda-analyzer-role"
+  name = "${var.app_name}-lambda-analyzer-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -184,8 +183,8 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
 
 resource "aws_iam_role_policy" "lambda_analyzer_policy" {
   count = var.use_existing_roles ? 0 : 1
-  name  = "${var.app_name}-lambda-analyzer-policy"
-  role  = aws_iam_role.lambda_analyzer[0].id
+  name = "${var.app_name}-lambda-analyzer-policy"
+  role = aws_iam_role.lambda_analyzer[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -196,7 +195,7 @@ resource "aws_iam_role_policy" "lambda_analyzer_policy" {
           "ssm:GetParameter"
         ]
         Resource = [
-          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${var.openai_api_key_param}"
+          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${var.letsur_api_key_param}"
         ]
       },
       {

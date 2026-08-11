@@ -26,8 +26,8 @@ variable "public_subnet_ids" {
   description = "Public subnet IDs for ALB"
   type        = list(string)
   default = [
-    "subnet-06b51abbad1ec0715", # ap-northeast-2b (same as ECS tasks)
-    "subnet-079004c63f3d5ad00"  # ap-northeast-2c (same as ECS tasks)
+    "subnet-06b51abbad1ec0715",  # ap-northeast-2b (same as ECS tasks)
+    "subnet-079004c63f3d5ad00"   # ap-northeast-2c (same as ECS tasks)
   ]
 }
 
@@ -35,8 +35,8 @@ variable "private_subnet_ids" {
   description = "Private subnet IDs for ECS tasks"
   type        = list(string)
   default = [
-    "subnet-06b51abbad1ec0715", # ap-northeast-2b
-    "subnet-079004c63f3d5ad00"  # ap-northeast-2c
+    "subnet-06b51abbad1ec0715",  # ap-northeast-2b
+    "subnet-079004c63f3d5ad00"   # ap-northeast-2c
   ]
 }
 
@@ -77,15 +77,9 @@ variable "max_capacity" {
 }
 
 variable "ecr_repository_url" {
-  description = "Existing ECR repository URL. Leave empty to use the Terraform-managed platform repository."
+  description = "ECR repository URL"
   type        = string
-  default     = ""
-}
-
-variable "ecr_repository_name" {
-  description = "Name of the Terraform-managed platform ECR repository"
-  type        = string
-  default     = "delightful-deploy"
+  default     = "265233844540.dkr.ecr.ap-northeast-2.amazonaws.com/delightful-deploy"
 }
 
 variable "image_tag" {
@@ -136,58 +130,28 @@ variable "deregistration_delay" {
   default     = 30
 }
 
-variable "openai_api_key_param" {
-  description = "SSM SecureString parameter containing the OpenAI API key"
+variable "letsur_api_key_param" {
+  description = "SSM parameter name for Letsur API key"
   type        = string
-  default     = "/delightful-deploy/openai-api-key"
+  default     = "/delightful/letsur/api_key"
 }
 
-variable "app_assign_public_ip" {
-  description = "Assign a public IP to platform tasks. Keep enabled for the current public-subnet deployment; disable when NAT or VPC endpoints are configured."
-  type        = bool
-  default     = true
-}
-
-variable "github_token_param" {
-  description = "SSM parameter name containing the GitHub token used by the dashboard"
+variable "letsur_base_url" {
+  description = "Letsur API base URL"
   type        = string
-  default     = "/delightful/github/token"
+  default     = "https://gateway.letsur.ai/v1"
 }
 
-variable "enable_dashboard_github_dispatch" {
-  description = "Inject the GitHub token and enable dashboard-triggered GitHub workflow dispatch"
-  type        = bool
-  default     = false
-}
-
-variable "dashboard_api_key_param" {
-  description = "SSM parameter containing the API key required by dashboard write endpoints"
+variable "letsur_model" {
+  description = "Letsur model name"
   type        = string
-  default     = "/delightful/dashboard/api-key"
-}
-
-variable "enable_dashboard_deployments" {
-  description = "Enable authenticated dashboard deployment endpoints"
-  type        = bool
-  default     = false
-}
-
-variable "openai_base_url" {
-  description = "OpenAI API base URL"
-  type        = string
-  default     = "https://api.openai.com/v1"
-}
-
-variable "openai_model" {
-  description = "OpenAI model used for repository analysis"
-  type        = string
-  default     = "gpt-4o"
+  default     = "gpt-5"
 }
 
 variable "enable_blue_green_deployment" {
   description = "Enable Blue-Green deployment with CodeDeploy (10-15min, safest). False = ECS Circuit Breaker (1-2min, production-safe)"
   type        = bool
-  default     = false # Fast mode: 1-2 minute deployments with AI + Circuit Breaker
+  default     = false  # Fast mode: 1-2 minute deployments with AI + Circuit Breaker
 }
 
 variable "deployment_config_name" {
@@ -230,7 +194,7 @@ variable "route_table_ids" {
 variable "use_existing_roles" {
   description = "Use pre-existing IAM roles instead of creating new ones"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "ecs_execution_role_arn" {
@@ -254,7 +218,7 @@ variable "lambda_analyzer_role_arn" {
 variable "create_log_groups" {
   description = "Create CloudWatch log groups for ECS tasks and Lambda functions"
   type        = bool
-  default     = true # Changed to true to let Terraform manage log groups
+  default     = true  # Changed to true to let Terraform manage log groups
 }
 
 variable "log_group_name_app" {
@@ -278,13 +242,13 @@ variable "log_group_name_lambda" {
 variable "use_existing_artifacts_bucket" {
   description = "Use pre-existing S3 artifacts bucket"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "artifacts_bucket_name" {
   description = "Artifacts bucket name (used if use_existing_artifacts_bucket=true)"
   type        = string
-  default     = "delightful-deploy-artifacts-265233844540"
+  default     = "deplight-platform-artifacts-apne2"
 }
 
 variable "cpu_target_value" {

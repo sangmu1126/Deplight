@@ -89,7 +89,8 @@ aws cloudformation deploy \
     AppName="$APP_NAME" \
     LambdaS3Bucket="$S3_BUCKET" \
     LambdaS3Key="$S3_KEY" \
-    OpenAIApiKeyParam=/delightful-deploy/openai-api-key \
+    LetsurApiKeyParam=/delightful/letsur/api_key \
   $(printf -- '--tags %s ' "${TAGS[@]}")
 
 echo "[done] bootstrap complete"
+

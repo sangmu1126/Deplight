@@ -14,7 +14,7 @@ jobs:
           # Use python to decode base64url and pretty print JSON without triggering secret masks
           python3 -c "import base64, json; payload = '$PAYLOAD'; payload += '=' * (-len(payload) % 4); decoded = base64.urlsafe_b64decode(payload).decode('utf-8'); print('OIDC_SUB:', json.loads(decoded).get('sub')); print('OIDC_AUD:', json.loads(decoded).get('aud'))"
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::265233844540:role/github-actions-deplight-role
           aws-region: ap-northeast-2

@@ -2,29 +2,34 @@
 import os
 import sys
 
-import requests
+try:
+    from dotenv import load_dotenv  # type: ignore
+except Exception:
+    def load_dotenv() -> None:  # fallback noop if python-dotenv isn't installed
+        pass
+
+from ai.llm_client import quick_ping
 
 
 def main() -> int:
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        print("error: OPENAI_API_KEY is not set")
+    load_dotenv()
+
+    # Guardrails: ensure key present
+    if not os.getenv("LETSUR_API_KEY"):
+        print("error: LETSUR_API_KEY is not set. Export it or add to a .env file.")
+        print("example: export LETSUR_API_KEY=sk-...\n")
         return 2
 
-    base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+    prompt = "Give a 1-sentence motivational tip for a hackathon team."
     try:
-        response = requests.get(
-            f"{base_url}/models",
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=15,
-        )
-        response.raise_for_status()
-        print("OpenAI API authentication succeeded")
+        reply = quick_ping(prompt)
+        print("Model reply:\n" + reply)
         return 0
-    except requests.RequestException as exc:
-        print(f"OpenAI API authentication failed: {exc}")
+    except Exception as e:
+        print(f"LLM call failed: {e}")
         return 1
 
 
 if __name__ == "__main__":
     sys.exit(main())
+

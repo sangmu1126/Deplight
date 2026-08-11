@@ -1267,8 +1267,15 @@ def lambda_handler(event, context):
     print("🌸 AI Code Analyzer invoked")
     print(f"Event: {json.dumps(event, default=str)}")
 
-    api_key_param = os.getenv("OPENAI_API_KEY_PARAM", "/delightful-deploy/openai-api-key")
-    api_key = _get_secret_from_ssm(api_key_param)
+    # Use direct OpenAI API instead of letsur endpoint
+    # Get OpenAI API key from SSM Parameter Store
+    try:
+        ssm = boto3.client('ssm', region_name='ap-northeast-2')
+        response = ssm.get_parameter(Name='/delightful-deploy/openai-api-key', WithDecryption=True)
+        api_key = response['Parameter']['Value']
+    except Exception as e:
+        print(f"❌ ERROR: Failed to get OpenAI API key from SSM: {e}")
+        api_key = None
 
     if not api_key:
         print("❌ ERROR: OpenAI API key not configured")
@@ -1277,8 +1284,9 @@ def lambda_handler(event, context):
             "body": json.dumps({"error": "API key not configured"})
         }
 
-    base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-    model = os.getenv("OPENAI_MODEL", "gpt-4o")
+    # Use direct OpenAI API endpoint
+    base_url = "https://api.openai.com/v1"
+    model = "gpt-4o"  # Using gpt-4o model
 
     print(f"✅ OpenAI API configured (base_url={base_url}, model={model})")
 

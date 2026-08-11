@@ -5,7 +5,6 @@ import './Deployment.css';
 import MetricsChart from '../components/MetricsChart';
 import PipelineMonitor from '../components/PipelineMonitor';
 import GithubActionModal from '../components/GithubActionModal';
-import { apiFetch } from '../api';
 
 interface DeploymentProps {
   plant: Plant;
@@ -54,7 +53,7 @@ const Deployment = ({ plant, onBack, onSettings }: DeploymentProps) => {
 
     const fetchStatus = async () => {
       try {
-        const response = await apiFetch(`/deploy/${currentPlant.id}/status`);
+        const response = await fetch(`/api/deploy/${currentPlant.id}/status`);
         if (!response.ok) throw new Error('Status fetch failed');
         
         const data = await response.json();
@@ -106,7 +105,7 @@ const Deployment = ({ plant, onBack, onSettings }: DeploymentProps) => {
 
     const fetchMetrics = async () => {
       try {
-        const response = await apiFetch(`/services/${currentPlant.id}/metrics`);
+        const response = await fetch(`/api/services/${currentPlant.id}/metrics`);
         if (!response.ok) throw new Error('Metrics fetch failed');
         
         const data = await response.json();
@@ -151,7 +150,7 @@ const Deployment = ({ plant, onBack, onSettings }: DeploymentProps) => {
     if (!currentPlant.gitUrl) return;
     setIsRedeploying(true);
     try {
-      const response = await apiFetch('/deploy', {
+      const response = await fetch('/api/deploy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
