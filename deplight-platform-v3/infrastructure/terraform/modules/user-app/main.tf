@@ -98,6 +98,17 @@ resource "aws_lb_listener_rule" "user_app" {
     }
   }
 
+  transform {
+    type = "url-rewrite"
+
+    url_rewrite_config {
+      rewrite {
+        regex   = "^/${var.path_prefix}/?(.*)$"
+        replace = "/$1"
+      }
+    }
+  }
+
   tags = {
     Name       = "${var.app_name}-rule"
     AppName    = var.app_name
