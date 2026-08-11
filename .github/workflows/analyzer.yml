@@ -1,12 +1,6 @@
 name: Analyzer Lambda
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "deplight-platform-v3/lambda/ai_code_analyzer/**"
-      - "deplight-platform-v3/scripts/package_lambda.sh"
-      - ".github/workflows/analyzer.yml"
   workflow_dispatch:
     inputs:
       function_name:

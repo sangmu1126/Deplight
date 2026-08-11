@@ -1,14 +1,6 @@
 name: Deploy Dashboard to ECS
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "deplight-app/Dockerfile"
-      - "deplight-app/Dockerfile.dockerignore"
-      - "deplight-app/frontend/**"
-      - "deplight-platform-v3/dashboard/**"
-      - ".github/workflows/deploy-dashboard.yml"
   workflow_dispatch:
 
 permissions:
