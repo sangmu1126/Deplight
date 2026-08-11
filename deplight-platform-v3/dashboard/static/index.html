@@ -267,8 +267,9 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // Use empty string for relative paths (same origin)
-        const API_BASE_URL = '';
+        const API_BASE_URL = window.location.pathname.startsWith('/dashboard')
+            ? '/dashboard/'
+            : '/';
 
         // Main App Component
         function App() {
