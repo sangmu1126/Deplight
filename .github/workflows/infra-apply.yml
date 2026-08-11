@@ -24,6 +24,9 @@ env:
   TF_INPUT: "false"
   TF_VAR_environment: ${{ inputs.environment }}
   TF_VAR_commit_sha: ${{ github.sha }}
+  TF_VAR_use_existing_roles: "false"
+  TF_VAR_enable_dashboard_github_dispatch: "true"
+  TF_VAR_enable_dashboard_deployments: "true"
 
 jobs:
   terraform-apply:

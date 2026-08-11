@@ -571,7 +571,7 @@ jobs:
         working-directory: ./deplight-platform-v3/infrastructure/terraform
         run: |
           if [ "${{ steps.prepare-vars.outputs.deploy_user_app }}" = "true" ]; then
-            TF_VARS="-var=deploy_user_app=true"
+            TF_VARS="-var=deploy_user_app=true -var=use_existing_roles=true"
             TF_VARS="$TF_VARS -var=user_app_name=${{ steps.prepare-vars.outputs.app_name }}"
             TF_VARS="$TF_VARS -var=user_app_repository_url=${{ github.event.inputs.target_repository }}"
             TF_VARS="$TF_VARS -var=user_app_image=${{ steps.prepare-vars.outputs.ecr_url }}"
@@ -589,9 +589,33 @@ jobs:
             terraform plan $TF_VARS -target=module.user_app -out=tfplan
           else
             terraform plan \
+              -var=use_existing_roles=false \
+              -var=enable_dashboard_github_dispatch=true \
+              -var=enable_dashboard_deployments=true \
+              -target=aws_iam_role.ecs_execution_role \
+              -target=aws_iam_role_policy_attachment.ecs_execution_role_policy \
+              -target=aws_iam_role_policy.ecs_execution_ssm_policy \
+              -target=aws_iam_role.ecs_task_role \
+              -target=aws_iam_role_policy.ecs_task_policy \
               -target=aws_ecs_task_definition.dashboard \
               -target=aws_ecs_service.dashboard \
               -out=tfplan
+          fi
+
+      - name: Reject unintentional destroys
+        working-directory: ./deplight-platform-v3/infrastructure/terraform
+        run: |
+          DELETE_COUNT=$(terraform show -json tfplan | jq '[
+            .resource_changes[]
+            | select(.change.actions == ["delete"])
+          ] | length')
+          if [ "$DELETE_COUNT" -ne 0 ]; then
+            echo "Refusing to apply a plan containing ${DELETE_COUNT} delete-only actions."
+            terraform show -json tfplan | jq -r '
+              .resource_changes[]
+              | select(.change.actions == ["delete"])
+              | .address'
+            exit 1
           fi
 
       - name: Terraform Apply

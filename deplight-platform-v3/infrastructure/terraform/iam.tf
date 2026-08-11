@@ -19,6 +19,10 @@ resource "aws_iam_role" "ecs_execution_role" {
   tags = {
     Name = "${var.app_name}-ecs-execution-role"
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "ecs_execution_role_policy" {
@@ -73,6 +77,10 @@ resource "aws_iam_role" "ecs_task_role" {
 
   tags = {
     Name = "${var.app_name}-ecs-task-role"
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
