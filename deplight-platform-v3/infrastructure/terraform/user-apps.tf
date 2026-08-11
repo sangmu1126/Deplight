@@ -12,7 +12,7 @@ locals {
   sanitized_app_name = local.create_user_app ? substr(
     replace(lower(var.user_app_name), "/[^a-z0-9-]/", "-"),
     0,
-    60  # Leave room for suffixes
+    60 # Leave room for suffixes
   ) : ""
 
   # Path prefix for ALB routing (e.g., "app/deployment-12345")
@@ -36,24 +36,24 @@ module "user_app" {
   repository_url = var.user_app_repository_url
 
   # Container configuration
-  image_tag         = var.user_app_image_tag
-  ecr_repository_url = var.user_app_image  # Full image URL without tag
-  container_port    = var.user_app_port
-  container_cpu     = tostring(var.user_app_cpu)
-  container_memory  = tostring(var.user_app_memory)
-  desired_count     = var.user_app_desired_count
+  image_tag          = var.user_app_image_tag
+  ecr_repository_url = var.user_app_image # Full image URL without tag
+  container_port     = var.user_app_port
+  container_cpu      = tostring(var.user_app_cpu)
+  container_memory   = tostring(var.user_app_memory)
+  desired_count      = var.user_app_desired_count
 
   # Network configuration
   vpc_id            = var.vpc_id
-  subnet_ids        = var.public_subnet_ids  # Use public subnets with public IP
+  subnet_ids        = var.public_subnet_ids # Use public subnets with public IP
   security_group_id = var.user_app_security_group_id
   assign_public_ip  = true
 
   # ALB configuration
-  alb_name                = var.user_app_alb_name
-  ecs_cluster_name        = var.user_app_ecs_cluster_name
-  path_prefix             = local.user_app_path_prefix
-  listener_rule_priority  = local.user_app_priority
+  alb_name               = var.user_app_alb_name
+  ecs_cluster_name       = var.user_app_ecs_cluster_name
+  path_prefix            = local.user_app_path_prefix
+  listener_rule_priority = local.user_app_priority
 
   # IAM roles
   ecs_execution_role_arn = var.use_existing_roles ? var.ecs_execution_role_arn : aws_iam_role.ecs_execution_role[0].arn

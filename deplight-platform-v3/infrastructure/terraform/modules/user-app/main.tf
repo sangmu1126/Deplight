@@ -18,7 +18,7 @@ data "aws_lb_listener" "http" {
 
 # Target Group for the user app
 resource "aws_lb_target_group" "user_app" {
-  name        = substr("${var.app_name}-tg", 0, 32)  # AWS limit is 32 chars
+  name        = substr("${var.app_name}-tg", 0, 32) # AWS limit is 32 chars
   port        = var.container_port
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
@@ -32,7 +32,7 @@ resource "aws_lb_target_group" "user_app" {
     interval            = 30
     path                = var.health_check_path
     protocol            = "HTTP"
-    matcher             = "200-499"  # Accept most responses to avoid false negatives
+    matcher             = "200-499" # Accept most responses to avoid false negatives
   }
 
   deregistration_delay = 30

@@ -1,9 +1,9 @@
 # DynamoDB Table for Garden State
 resource "aws_dynamodb_table" "garden_state" {
-  name           = "${var.app_name}-garden-state"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "deployment_id"
-  range_key      = "timestamp"
+  name         = "${var.app_name}-garden-state"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "deployment_id"
+  range_key    = "timestamp"
 
   attribute {
     name = "deployment_id"
@@ -64,10 +64,10 @@ resource "aws_dynamodb_table" "garden_state" {
 
 # DynamoDB Table for AI Analysis Results
 resource "aws_dynamodb_table" "ai_analysis" {
-  name           = "${var.app_name}-ai-analysis"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "analysis_id"
-  range_key      = "timestamp"
+  name         = "${var.app_name}-ai-analysis"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "analysis_id"
+  range_key    = "timestamp"
 
   attribute {
     name = "analysis_id"
@@ -125,9 +125,9 @@ resource "aws_dynamodb_table" "ai_analysis" {
 
 # DynamoDB Table for Deployment History (for Garden Exhibition)
 resource "aws_dynamodb_table" "deployment_history" {
-  name           = "${var.app_name}-deployment-history"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "id"
+  name         = "${var.app_name}-deployment-history"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "id"
 
   attribute {
     name = "id"

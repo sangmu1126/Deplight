@@ -25,6 +25,10 @@ resource "aws_ecs_cluster_capacity_providers" "main" {
   }
 }
 
+locals {
+  platform_ecr_repository_url = var.ecr_repository_url != "" ? var.ecr_repository_url : aws_ecr_repository.platform.repository_url
+}
+
 # ECS Task Definition
 resource "aws_ecs_task_definition" "app" {
   family                   = var.app_name
@@ -38,7 +42,7 @@ resource "aws_ecs_task_definition" "app" {
   container_definitions = jsonencode([
     {
       name      = var.app_name
-      image     = "${var.ecr_repository_url}:${var.image_tag}"
+      image     = "${local.platform_ecr_repository_url}:${var.image_tag}"
       essential = true
 
       portMappings = [
@@ -63,12 +67,7 @@ resource "aws_ecs_task_definition" "app" {
         }
       ]
 
-      secrets = [
-        {
-          name      = "LETSUR_API_KEY"
-          valueFrom = var.letsur_api_key_param
-        }
-      ]
+      secrets = []
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -103,16 +102,17 @@ resource "aws_ecs_task_definition" "app" {
 
 # ECS Service
 resource "aws_ecs_service" "app" {
-  name            = "${var.app_name}-service"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.app.arn
-  desired_count   = var.desired_count
-  launch_type     = "FARGATE"
+  name                  = "${var.app_name}-service"
+  cluster               = aws_ecs_cluster.main.id
+  task_definition       = aws_ecs_task_definition.app.arn
+  desired_count         = var.desired_count
+  launch_type           = "FARGATE"
+  wait_for_steady_state = true
 
   network_configuration {
     subnets          = var.private_subnet_ids
     security_groups  = [aws_security_group.ecs_tasks.id]
-    assign_public_ip = false
+    assign_public_ip = var.app_assign_public_ip
   }
 
   # Use Blue-Green deployment if enabled
@@ -156,14 +156,6 @@ resource "aws_ecs_service" "app" {
   enable_ecs_managed_tags = true
   propagate_tags          = "SERVICE"
 
-  # Ignore task definition changes when using Blue-Green
-  lifecycle {
-    ignore_changes = [
-      task_definition,
-      load_balancer,
-    ]
-  }
-
   depends_on = [
     aws_lb_listener.http,
     aws_iam_role_policy_attachment.ecs_execution_role_policy
@@ -200,7 +192,7 @@ resource "aws_ecs_task_definition" "dashboard" {
   container_definitions = jsonencode([
     {
       name      = "dashboard"
-      image     = "${var.ecr_repository_url}:dashboard-latest"
+      image     = "${local.platform_ecr_repository_url}:dashboard-latest"
       essential = true
 
       portMappings = [
@@ -218,12 +210,20 @@ resource "aws_ecs_task_definition" "dashboard" {
         { name = "MANGO_REPO", value = "Softbank-mango/deplight-platform-v3" }
       ]
 
-      secrets = [
-        {
-          name      = "GITHUB_TOKEN"
-          valueFrom = "/delightful/github/token"
-        }
-      ]
+      secrets = concat(
+        var.enable_dashboard_github_dispatch ? [
+          {
+            name      = "GITHUB_TOKEN"
+            valueFrom = var.github_token_param
+          }
+        ] : [],
+        var.enable_dashboard_deployments ? [
+          {
+            name      = "DASHBOARD_API_KEY"
+            valueFrom = var.dashboard_api_key_param
+          }
+        ] : []
+      )
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -238,11 +238,12 @@ resource "aws_ecs_task_definition" "dashboard" {
 }
 
 resource "aws_ecs_service" "dashboard" {
-  name            = "${var.app_name}-dashboard-service"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.dashboard.arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
+  name                  = "${var.app_name}-dashboard-service"
+  cluster               = aws_ecs_cluster.main.id
+  task_definition       = aws_ecs_task_definition.dashboard.arn
+  desired_count         = 1
+  launch_type           = "FARGATE"
+  wait_for_steady_state = true
 
   network_configuration {
     subnets          = var.public_subnet_ids

@@ -3,7 +3,7 @@
 
 # Security group for VPC endpoints
 resource "aws_security_group" "vpc_endpoints" {
-  count      = var.create_vpc_endpoints ? 1 : 0
+  count       = var.create_vpc_endpoints ? 1 : 0
   name_prefix = "${var.app_name}-vpc-endpoints-"
   description = "Security group for VPC endpoints"
   vpc_id      = var.vpc_id
@@ -35,7 +35,7 @@ resource "aws_security_group" "vpc_endpoints" {
 
 # SSM VPC Endpoint (for secrets retrieval)
 resource "aws_vpc_endpoint" "ssm" {
-  count              = var.create_vpc_endpoints ? 1 : 0
+  count               = var.create_vpc_endpoints ? 1 : 0
   vpc_id              = var.vpc_id
   service_name        = "com.amazonaws.${var.aws_region}.ssm"
   vpc_endpoint_type   = "Interface"
@@ -50,7 +50,7 @@ resource "aws_vpc_endpoint" "ssm" {
 
 # ECR API VPC Endpoint (for Docker image metadata)
 resource "aws_vpc_endpoint" "ecr_api" {
-  count              = var.create_vpc_endpoints ? 1 : 0
+  count               = var.create_vpc_endpoints ? 1 : 0
   vpc_id              = var.vpc_id
   service_name        = "com.amazonaws.${var.aws_region}.ecr.api"
   vpc_endpoint_type   = "Interface"
@@ -65,7 +65,7 @@ resource "aws_vpc_endpoint" "ecr_api" {
 
 # ECR DKR VPC Endpoint (for Docker image layers)
 resource "aws_vpc_endpoint" "ecr_dkr" {
-  count              = var.create_vpc_endpoints ? 1 : 0
+  count               = var.create_vpc_endpoints ? 1 : 0
   vpc_id              = var.vpc_id
   service_name        = "com.amazonaws.${var.aws_region}.ecr.dkr"
   vpc_endpoint_type   = "Interface"
@@ -80,7 +80,7 @@ resource "aws_vpc_endpoint" "ecr_dkr" {
 
 # CloudWatch Logs VPC Endpoint (for container logs)
 resource "aws_vpc_endpoint" "logs" {
-  count              = var.create_vpc_endpoints ? 1 : 0
+  count               = var.create_vpc_endpoints ? 1 : 0
   vpc_id              = var.vpc_id
   service_name        = "com.amazonaws.${var.aws_region}.logs"
   vpc_endpoint_type   = "Interface"
@@ -95,11 +95,11 @@ resource "aws_vpc_endpoint" "logs" {
 
 # S3 Gateway VPC Endpoint (for ECR image layers)
 resource "aws_vpc_endpoint" "s3" {
-  count            = var.create_vpc_endpoints ? 1 : 0
-  vpc_id           = var.vpc_id
-  service_name     = "com.amazonaws.${var.aws_region}.s3"
+  count             = var.create_vpc_endpoints ? 1 : 0
+  vpc_id            = var.vpc_id
+  service_name      = "com.amazonaws.${var.aws_region}.s3"
   vpc_endpoint_type = "Gateway"
-  route_table_ids  = var.route_table_ids
+  route_table_ids   = var.route_table_ids
 
   tags = {
     Name = "${var.app_name}-s3-endpoint"
@@ -108,11 +108,11 @@ resource "aws_vpc_endpoint" "s3" {
 
 # DynamoDB Gateway VPC Endpoint (for DynamoDB access without NAT)
 resource "aws_vpc_endpoint" "dynamodb" {
-  count            = var.create_vpc_endpoints ? 1 : 0
-  vpc_id           = var.vpc_id
-  service_name     = "com.amazonaws.${var.aws_region}.dynamodb"
+  count             = var.create_vpc_endpoints ? 1 : 0
+  vpc_id            = var.vpc_id
+  service_name      = "com.amazonaws.${var.aws_region}.dynamodb"
   vpc_endpoint_type = "Gateway"
-  route_table_ids  = var.route_table_ids
+  route_table_ids   = var.route_table_ids
 
   tags = {
     Name = "${var.app_name}-dynamodb-endpoint"

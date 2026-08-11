@@ -173,13 +173,13 @@ output "vpc_id" {
 output "quick_start_commands" {
   description = "Quick start commands for using the infrastructure"
   value = {
-    view_logs           = "aws logs tail ${var.create_log_groups ? aws_cloudwatch_log_group.app[0].name : var.log_group_name_app} --follow"
-    view_dashboard      = "open https://console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards:name=${aws_cloudwatch_dashboard.main.dashboard_name}"
-    describe_service    = "aws ecs describe-services --cluster ${aws_ecs_cluster.main.name} --services ${aws_ecs_service.app.name}"
-    test_alb            = "curl http://${aws_lb.main.dns_name}/health"
-    test_green          = "curl http://${aws_lb.main.dns_name}:8080/health"
-    invoke_ai_analyzer  = "aws lambda invoke --function-name ${aws_lambda_function.ai_analyzer.function_name} /tmp/response.json"
-    view_garden_state   = "aws dynamodb scan --table-name ${aws_dynamodb_table.garden_state.name} --max-items 10"
+    view_logs          = "aws logs tail ${var.create_log_groups ? aws_cloudwatch_log_group.app[0].name : var.log_group_name_app} --follow"
+    view_dashboard     = "open https://console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards:name=${aws_cloudwatch_dashboard.main.dashboard_name}"
+    describe_service   = "aws ecs describe-services --cluster ${aws_ecs_cluster.main.name} --services ${aws_ecs_service.app.name}"
+    test_alb           = "curl http://${aws_lb.main.dns_name}/health"
+    test_green         = "curl http://${aws_lb.main.dns_name}:8080/health"
+    invoke_ai_analyzer = "aws lambda invoke --function-name ${aws_lambda_function.ai_analyzer.function_name} /tmp/response.json"
+    view_garden_state  = "aws dynamodb scan --table-name ${aws_dynamodb_table.garden_state.name} --max-items 10"
   }
 }
 
@@ -187,12 +187,12 @@ output "quick_start_commands" {
 output "deployment_info" {
   description = "Information about the current deployment"
   value = {
-    image_tag              = var.image_tag
-    commit_sha             = var.commit_sha
-    container_port         = var.container_port
-    desired_count          = var.desired_count
-    deployment_config      = var.deployment_config_name
-    health_check_path      = var.health_check_path
+    image_tag         = var.image_tag
+    commit_sha        = var.commit_sha
+    container_port    = var.container_port
+    desired_count     = var.desired_count
+    deployment_config = var.deployment_config_name
+    health_check_path = var.health_check_path
   }
 }
 
@@ -200,11 +200,11 @@ output "deployment_info" {
 output "garden_ui_info" {
   description = "Information for Garden UI integration"
   value = {
-    lambda_function_url    = aws_lambda_function_url.ai_analyzer.function_url
-    garden_state_table     = aws_dynamodb_table.garden_state.name
-    deployment_history     = aws_dynamodb_table.deployment_history.name
-    alb_url                = "http://${aws_lb.main.dns_name}"
-    cloudwatch_dashboard   = aws_cloudwatch_dashboard.main.dashboard_name
+    lambda_function_url  = aws_lambda_function_url.ai_analyzer.function_url
+    garden_state_table   = aws_dynamodb_table.garden_state.name
+    deployment_history   = aws_dynamodb_table.deployment_history.name
+    alb_url              = "http://${aws_lb.main.dns_name}"
+    cloudwatch_dashboard = aws_cloudwatch_dashboard.main.dashboard_name
   }
 }
 

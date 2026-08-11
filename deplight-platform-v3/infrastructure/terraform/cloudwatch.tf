@@ -126,9 +126,9 @@ resource "aws_cloudwatch_dashboard" "main" {
       {
         type = "log"
         properties = {
-          query   = "SOURCE '${local.app_log_group_name}' | fields @timestamp, @message | filter @message like /deployment/ | sort @timestamp desc | limit 20"
-          region  = var.aws_region
-          title   = "Recent Deployments"
+          query  = "SOURCE '${local.app_log_group_name}' | fields @timestamp, @message | filter @message like /deployment/ | sort @timestamp desc | limit 20"
+          region = var.aws_region
+          title  = "Recent Deployments"
         }
       },
       {
@@ -138,10 +138,10 @@ resource "aws_cloudwatch_dashboard" "main" {
             ["${var.app_name}", "DeploymentSuccess", { stat = "Sum", color = "#2ca02c" }],
             [".", "DeploymentFailure", { stat = "Sum", color = "#d62728" }]
           ]
-          view    = "singleValue"
-          region  = var.aws_region
-          title   = "Deployment Success Rate (24h)"
-          period  = 86400
+          view   = "singleValue"
+          region = var.aws_region
+          title  = "Deployment Success Rate (24h)"
+          period = 86400
         }
       },
       {
@@ -150,10 +150,10 @@ resource "aws_cloudwatch_dashboard" "main" {
           metrics = [
             ["${var.app_name}", "GardenFlowers", { stat = "Maximum", color = "#2ca02c" }]
           ]
-          view    = "singleValue"
-          region  = var.aws_region
-          title   = "Garden Flowers (Successful Deploys)"
-          period  = 2592000  # 30 days
+          view   = "singleValue"
+          region = var.aws_region
+          title  = "Garden Flowers (Successful Deploys)"
+          period = 2592000 # 30 days
         }
       }
     ]
@@ -205,10 +205,10 @@ resource "aws_cloudwatch_log_metric_filter" "garden_flowers" {
 
 # Composite Alarm for Critical Service Health
 resource "aws_cloudwatch_composite_alarm" "service_critical" {
-  alarm_name          = "${var.app_name}-service-critical"
-  alarm_description   = "Composite alarm for critical service health issues"
-  actions_enabled     = true
-  alarm_actions       = []
+  alarm_name        = "${var.app_name}-service-critical"
+  alarm_description = "Composite alarm for critical service health issues"
+  actions_enabled   = true
+  alarm_actions     = []
 
   alarm_rule = "ALARM(${aws_cloudwatch_metric_alarm.alb_healthy_hosts.alarm_name}) OR ALARM(${aws_cloudwatch_metric_alarm.alb_5xx_errors.alarm_name})"
 
@@ -228,10 +228,10 @@ resource "aws_sns_topic" "alerts" {
 }
 
 resource "aws_sns_topic_subscription" "alerts_email" {
-  count     = 0  # Set to 1 and provide email to enable
+  count     = 0 # Set to 1 and provide email to enable
   topic_arn = aws_sns_topic.alerts.arn
   protocol  = "email"
-  endpoint  = "your-email@example.com"  # Replace with actual email
+  endpoint  = "your-email@example.com" # Replace with actual email
 }
 
 # CloudWatch Insights Queries

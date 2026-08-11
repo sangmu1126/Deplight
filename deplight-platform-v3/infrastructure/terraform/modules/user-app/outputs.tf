@@ -53,15 +53,15 @@ output "path_pattern" {
 output "app_info" {
   description = "Complete information about the deployed user app"
   value = {
-    app_name           = var.app_name
-    repository_url     = var.repository_url
-    image_tag          = var.image_tag
-    container_port     = var.container_port
-    endpoint_url       = "http://${data.aws_lb.main.dns_name}/${var.path_prefix}"
-    service_name       = aws_ecs_service.user_app.name
-    target_group_arn   = aws_lb_target_group.user_app.arn
-    log_group_name     = aws_cloudwatch_log_group.user_app.name
-    path_pattern       = "/${var.path_prefix}/*"
-    listener_priority  = var.listener_rule_priority
+    app_name          = var.app_name
+    repository_url    = var.repository_url
+    image_tag         = var.image_tag
+    container_port    = var.container_port
+    endpoint_url      = "http://${data.aws_lb.main.dns_name}/${var.path_prefix}"
+    service_name      = aws_ecs_service.user_app.name
+    target_group_arn  = aws_lb_target_group.user_app.arn
+    log_group_name    = aws_cloudwatch_log_group.user_app.name
+    path_pattern      = "/${var.path_prefix}/*"
+    listener_priority = var.listener_rule_priority
   }
 }
