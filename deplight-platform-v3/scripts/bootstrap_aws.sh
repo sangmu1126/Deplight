@@ -9,10 +9,9 @@ NC='\033[0m' # No Color
 
 # Configuration
 REGION="ap-northeast-2"
-S3_BUCKET="delightful-deploy-artifacts-1762083190"
+S3_BUCKET="delightful-deploy-artifacts-265233844540"
 ECR_REPO="delightful-deploy"
-LETSUR_API_KEY="sk-bYiwDrh0F0wmHZhxq72sfA"
-SSM_PARAM_NAME="/delightful/letsur/api_key"
+SSM_PARAM_NAME="/delightful-deploy/openai-api-key"
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}Delightful Deploy - AWS Bootstrap${NC}"
@@ -35,15 +34,15 @@ aws ecr create-repository \
   --image-scanning-configuration scanOnPush=true 2>/dev/null || echo "  ℹ️  Repository already exists or error"
 echo -e "${GREEN}  ✅ ECR repository ready: ${ECR_REPO}${NC}"
 
-# 3. Create SSM Parameter for Letsur API Key
-echo -e "\n${YELLOW}🔑 Creating SSM parameter for Letsur API key...${NC}"
-aws ssm put-parameter \
-  --name ${SSM_PARAM_NAME} \
-  --value ${LETSUR_API_KEY} \
-  --type SecureString \
-  --region ${REGION} \
-  --overwrite 2>/dev/null || true
-echo -e "${GREEN}  ✅ SSM parameter created: ${SSM_PARAM_NAME}${NC}"
+# 3. Verify the separately provisioned OpenAI key. Secret values must never be
+# stored in this repository or passed on a command line by this script.
+echo -e "\n${YELLOW}🔑 Checking OpenAI API key parameter...${NC}"
+aws ssm get-parameter \
+  --name "${SSM_PARAM_NAME}" \
+  --region "${REGION}" \
+  --query 'Parameter.Name' \
+  --output text >/dev/null
+echo -e "${GREEN}  ✅ SSM parameter exists: ${SSM_PARAM_NAME}${NC}"
 
 # 4. Get VPC and Subnet information
 echo -e "\n${YELLOW}🌐 Getting VPC and subnet information...${NC}"

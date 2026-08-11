@@ -9,18 +9,26 @@ mkdir -p "$(dirname "$OUT_ZIP")"
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
-rsync -a "$SRC_DIR/" "$tmpdir/"
+python3 -m pip install \
+    --requirement "$SRC_DIR/requirements.txt" \
+    --target "$tmpdir" \
+    --platform manylinux2014_x86_64 \
+    --python-version 3.12 \
+    --implementation cp \
+    --only-binary=:all: \
+    --disable-pip-version-check
 
-# Move package/* to root for Lambda to find dependencies
-if [ -d "$tmpdir/package" ]; then
-    echo "Moving package contents to root..."
-    rsync -a "$tmpdir/package/" "$tmpdir/"
-    rm -rf "$tmpdir/package"
-fi
+rsync -a \
+    --exclude '__pycache__' \
+    --exclude '*.pyc' \
+    --exclude '*.zip' \
+    --exclude 'package' \
+    --exclude 'deploy_pkg' \
+    "$SRC_DIR/" "$tmpdir/"
 
+rm -f "$OUT_ZIP"
 pushd "$tmpdir" >/dev/null
-zip -r "$OLDPWD/$OUT_ZIP" .
+zip -qr "$OLDPWD/$OUT_ZIP" .
 popd >/dev/null
 
 echo "Created $OUT_ZIP"
-
