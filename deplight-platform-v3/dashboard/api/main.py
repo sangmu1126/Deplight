@@ -5,6 +5,7 @@ FastAPI backend for the service dashboard
 """
 from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 import boto3
 from datetime import datetime
 from typing import Optional
@@ -46,7 +47,7 @@ ALB_DNS = os.getenv('ALB_DNS', 'delightful-deploy-alb-1219635926.ap-northeast-2.
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')  # Personal Access Token
 DASHBOARD_API_KEY = os.getenv('DASHBOARD_API_KEY')
 GITHUB_API_URL = "https://api.github.com"
-MANGO_REPO = os.getenv('MANGO_REPO', 'Softbank-mango/deplight-platform-v3')
+MANGO_REPO = os.getenv('MANGO_REPO', 'sangmu1126/Deplight')
 
 
 @app.middleware("http")
@@ -673,6 +674,10 @@ def _get_service_status(status: str) -> str:
         'error': 'error'
     }
     return status_map.get(status.lower(), 'unknown')
+
+
+# API routes are registered first. All remaining paths serve the React build.
+app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True, check_dir=False), name="frontend")
 
 
 if __name__ == '__main__':

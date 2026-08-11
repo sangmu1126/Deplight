@@ -1,34 +1,35 @@
-# Stage 1: Build React Frontend
-FROM node:18-slim AS frontend-builder
+FROM node:24-slim AS frontend-builder
 
-WORKDIR /usr/src/app/frontend
-COPY frontend/package*.json ./
-RUN npm install
+WORKDIR /build/frontend
 
-COPY frontend ./
+COPY deplight-app/frontend/package*.json ./
+RUN npm ci
+
+COPY deplight-app/frontend/ ./
 RUN npm run build
 
 
-# Stage 2: Build Backend & Serve
-FROM node:18-slim
+FROM python:3.12-slim AS runtime
 
-WORKDIR /usr/src/app
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PORT=8000 \
+    AWS_REGION=ap-northeast-2
 
-# Install backend dependencies
-COPY backend/package*.json ./backend/
-RUN cd backend && npm install
+WORKDIR /app
 
-# Copy backend source code
-COPY backend ./backend
+COPY deplight-platform-v3/dashboard/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir --requirement requirements.txt
 
-# Copy the built React app from Stage 1
-COPY --from=frontend-builder /usr/src/app/frontend/dist ./frontend/dist
+COPY deplight-platform-v3/dashboard/api ./api
+COPY --from=frontend-builder /build/frontend/dist ./static
 
-# Environment settings
-ENV NODE_ENV=production
-ENV PORT=8080
-EXPOSE 8080
+RUN useradd --create-home --uid 10001 deplight && chown -R deplight:deplight /app
+USER deplight
 
-# Start the Express server
-WORKDIR /usr/src/app/backend
-CMD ["node", "server.js"]
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)" || exit 1
+
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]

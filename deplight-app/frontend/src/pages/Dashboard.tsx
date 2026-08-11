@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ServerCrash } from 'lucide-react';
 import AppCard, { type Plant } from '../components/AppCard';
 import { mapServiceToPlant, type FastAPIServiceDTO } from '../utils/mappers';
+import { apiFetch } from '../api';
 import './Dashboard.css';
 
 interface DashboardProps {
@@ -26,7 +27,7 @@ const Dashboard = ({ onSelectPlant, workspaceId }: DashboardProps) => {
 
     const checkHealth = async () => {
       try {
-        const res = await fetch('/api/health');
+        const res = await apiFetch('/health');
         if (isMounted) setIsConnected(res.ok);
       } catch {
         if (isMounted) setIsConnected(false);
@@ -35,7 +36,7 @@ const Dashboard = ({ onSelectPlant, workspaceId }: DashboardProps) => {
 
     const fetchServices = async () => {
       try {
-        const response = await fetch('/api/services');
+        const response = await apiFetch('/services');
         if (!response.ok) {
           throw new Error('Network response was not ok');
         }
@@ -71,7 +72,7 @@ const Dashboard = ({ onSelectPlant, workspaceId }: DashboardProps) => {
 
     setIsDeploying(true);
     try {
-      const response = await fetch('/api/deploy', {
+      const response = await apiFetch('/deploy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -81,7 +82,10 @@ const Dashboard = ({ onSelectPlant, workspaceId }: DashboardProps) => {
         })
       });
 
-      if (!response.ok) throw new Error('Deployment failed');
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.detail || 'Deployment failed');
+      }
       
       const responseData = await response.json();
       
@@ -91,7 +95,7 @@ const Dashboard = ({ onSelectPlant, workspaceId }: DashboardProps) => {
       setBranch('main');
       
       // Fetch immediately to update the list, but also auto-navigate!
-      fetch('/api/services')
+      apiFetch('/services')
         .then(res => res.json())
         .then(data => {
           if (data.success && Array.isArray(data.services)) {
@@ -115,7 +119,7 @@ const Dashboard = ({ onSelectPlant, workspaceId }: DashboardProps) => {
 
     } catch (error) {
       console.error('Failed to trigger deployment:', error);
-      alert('Failed to start deployment');
+      alert(error instanceof Error ? error.message : 'Failed to start deployment');
     } finally {
       setIsDeploying(false);
     }

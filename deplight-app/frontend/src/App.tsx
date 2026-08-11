@@ -1,32 +1,14 @@
 import { useState } from 'react';
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
-import Login from './pages/Login';
-import WorkspaceSelection from './pages/WorkspaceSelection';
 import Deployment from './pages/Deployment';
 import { Bell, User } from 'lucide-react';
 import type { Plant } from './components/AppCard';
 import './App.css';
 
 function App() {
-  const [authState, setAuthState] = useState<'login' | 'workspace' | 'app'>('login');
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null);
-  const [workspaceId, setWorkspaceId] = useState<string>('');
   const [showSettings, setShowSettings] = useState(false);
-
-  // If not logged in
-  if (authState === 'login') {
-    return <Login onLoginSuccess={() => setAuthState('workspace')} />;
-  }
-
-  // If logged in but no workspace selected
-  if (authState === 'workspace') {
-    return <WorkspaceSelection onSelect={(id) => {
-      console.log('Selected workspace:', id);
-      setWorkspaceId(id);
-      setAuthState('app');
-    }} />;
-  }
 
   // Main App View with Top-Nav (No Sidebar)
   return (
@@ -78,7 +60,7 @@ function App() {
         ) : (
           <Dashboard 
             onSelectPlant={(plant) => setSelectedPlant(plant)} 
-            workspaceId={workspaceId}
+            workspaceId="default"
           />
         )}
       </main>
