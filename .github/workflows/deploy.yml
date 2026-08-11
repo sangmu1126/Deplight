@@ -49,7 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::265233844540:role/github-actions-deplight-role
           aws-region: ${{ env.AWS_REGION }}
@@ -146,7 +146,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Get latest release version
         id: get-version
@@ -198,10 +198,10 @@ jobs:
       image-tag: ${{ steps.meta.outputs.image-tag }}
       ecr-repository: ${{ steps.meta.outputs.ecr-repository }}
       app-port: ${{ steps.ai-analysis.outputs.port || '8000' }}
+      health-path: ${{ steps.ai-analysis.outputs.health_path || '/' }}
       cpu: ${{ steps.ai-analysis.outputs.cpu || '256' }}
       memory: ${{ steps.ai-analysis.outputs.memory || '512' }}
       release-tag: ${{ needs.create-release.outputs.release-tag }}
-      ecs-service-name: ${{ steps.select-service.outputs.service }}
       analysis-id: ${{ steps.ai-analysis.outputs.analysis_id }}
 
     steps:
@@ -223,7 +223,7 @@ jobs:
 
       - name: Checkout user repository
         if: github.event.inputs.target_repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ steps.parse-repo.outputs.repository }}
           ref: ${{ github.event.inputs.target_branch || 'main' }}
@@ -231,14 +231,14 @@ jobs:
 
       - name: Checkout platform repository
         if: ${{ !github.event.inputs.target_repository }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ github.repository }}
           ref: ${{ github.ref }}
           path: .
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::265233844540:role/github-actions-deplight-role
           aws-region: ${{ env.AWS_REGION }}
@@ -344,19 +344,26 @@ jobs:
 
           # Extract port from terraform_tfvars or use defaults
           APP_PORT=8000
+          HEALTH_PATH="/"
           CPU=256
           MEMORY=512
 
           # Try to extract port from terraform.tfvars if it exists
           if [ -f /tmp/terraform.tfvars ]; then
-            APP_PORT=$(grep -oP 'container_port\s*=\s*\K\d+' /tmp/terraform.tfvars || echo "8000")
-            CPU=$(grep -oP 'container_cpu\s*=\s*"\K\d+' /tmp/terraform.tfvars || echo "256")
-            MEMORY=$(grep -oP 'container_memory\s*=\s*"\K\d+' /tmp/terraform.tfvars || echo "512")
+            APP_PORT=$(grep -m1 -oP '^container_port\s*=\s*\K\d+' /tmp/terraform.tfvars || echo "8000")
+            HEALTH_PATH=$(grep -m1 -oP '^health_check_path\s*=\s*"\K/[A-Za-z0-9_./-]+' /tmp/terraform.tfvars || echo "/")
+            CPU=$(grep -m1 -oP '^(?:container_cpu|cpu)\s*=\s*"?\K\d+' /tmp/terraform.tfvars || echo "256")
+            MEMORY=$(grep -m1 -oP '^(?:container_memory|memory)\s*=\s*"?\K\d+' /tmp/terraform.tfvars || echo "512")
+          fi
+
+          if ! [[ "$HEALTH_PATH" =~ ^/[A-Za-z0-9_./-]*$ ]]; then
+            HEALTH_PATH="/"
           fi
 
           echo "Using configuration: Port=${APP_PORT}, CPU=${CPU}, Memory=${MEMORY}"
 
           echo "port=${APP_PORT}" >> $GITHUB_OUTPUT
+          echo "health_path=${HEALTH_PATH}" >> $GITHUB_OUTPUT
           echo "cpu=${CPU}" >> $GITHUB_OUTPUT
           echo "memory=${MEMORY}" >> $GITHUB_OUTPUT
           echo "analysis_id=${ANALYSIS_ID}" >> $GITHUB_OUTPUT
@@ -378,37 +385,21 @@ jobs:
           echo "✅ Dockerfile ready"
           ls -la ./user_repo/Dockerfile || echo "No Dockerfile found"
 
-      - name: Download AI-generated Terraform tfvars from S3
-        if: github.event.inputs.target_repository
-        id: dl-tfvars
-        run: |
-          echo "📥 Downloading AI-generated Terraform tfvars from S3..."
-          ANALYSIS_ID="${{ steps.ai-analysis.outputs.analysis_id }}"
-          S3_BUCKET="${{ env.S3_ARTIFACTS_BUCKET }}"
-          mkdir -p infrastructure/terraform
-          # Try both keys used by the analyzer
-          aws s3 cp "s3://${S3_BUCKET}/analysis/${ANALYSIS_ID}/terraform_tfvars" infrastructure/terraform/ai.tfvars || true
-          aws s3 cp "s3://${S3_BUCKET}/analysis/${ANALYSIS_ID}/terraform.tfvars" infrastructure/terraform/ai.tfvars || true
-          if [ -f infrastructure/terraform/ai.tfvars ]; then
-            echo "ai_tfvars=present" >> $GITHUB_OUTPUT
-            echo "✅ Downloaded ai.tfvars"
-          else
-            echo "⚠️ No ai.tfvars found; proceeding with defaults"
-          fi
-
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Detect build context and Dockerfile
         id: detect
         run: |
           if [ -n "${{ github.event.inputs.target_repository }}" ]; then
             BUILD_PATH="user_repo"
+            DOCKERFILE_PATH="$BUILD_PATH/Dockerfile"
           else
-            BUILD_PATH="./deplight-platform-v3/dashboard"
+            BUILD_PATH="."
+            DOCKERFILE_PATH="./deplight-app/Dockerfile"
           fi
-          DOCKERFILE_PATH="$BUILD_PATH/Dockerfile"
           echo "build-path=${BUILD_PATH}" >> $GITHUB_OUTPUT
+          echo "dockerfile-path=${DOCKERFILE_PATH}" >> $GITHUB_OUTPUT
           if [ -f "$DOCKERFILE_PATH" ]; then
             echo "has-dockerfile=true" >> $GITHUB_OUTPUT
             echo "Dockerfile detected at $DOCKERFILE_PATH"
@@ -426,7 +417,7 @@ jobs:
         id: meta
         run: |
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-          IMAGE_TAG="deploy-${SHORT_SHA}"
+          IMAGE_TAG="deploy-${{ github.run_id }}"
 
           # For user apps, use separate ECR repository per app
           if [ -n "${{ github.event.inputs.target_repository }}" ]; then
@@ -434,6 +425,7 @@ jobs:
             REPO_NAME=$(echo "${{ github.event.inputs.target_repository }}" | sed 's|.*/||' | sed 's|\.git$||' | tr '[:upper:]' '[:lower:]')
             ECR_REPO="user-app-${REPO_NAME}"
             echo "ecr-repository=${ECR_REPO}" >> $GITHUB_OUTPUT
+            echo "stable-tag=latest" >> $GITHUB_OUTPUT
 
             # Create ECR repository if it doesn't exist
             aws ecr describe-repositories --repository-names "${ECR_REPO}" --region ${{ env.AWS_REGION }} 2>/dev/null || \
@@ -441,6 +433,7 @@ jobs:
           else
             # Platform deployment uses default repository
             echo "ecr-repository=${{ env.ECR_REPOSITORY }}" >> $GITHUB_OUTPUT
+            echo "stable-tag=dashboard-latest" >> $GITHUB_OUTPUT
           fi
 
           echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
@@ -451,7 +444,8 @@ jobs:
         run: |
           ECR_REPO="${{ steps.meta.outputs.ecr-repository }}"
           docker build -t ${{ env.ECR_REGISTRY }}/${ECR_REPO}:${{ steps.meta.outputs.image-tag }} \
-                       -t ${{ env.ECR_REGISTRY }}/${ECR_REPO}:latest \
+                       -t ${{ env.ECR_REGISTRY }}/${ECR_REPO}:${{ steps.meta.outputs.stable-tag }} \
+                       -f "${{ steps.detect.outputs.dockerfile-path }}" \
                        "${{ steps.detect.outputs.build-path }}"
 
       - name: Install Pack CLI (Buildpacks)
@@ -473,7 +467,7 @@ jobs:
             --builder paketobuildpacks/builder-jammy-base \
             --env "BP_LOG_LEVEL=info"
           # Also tag latest
-          docker tag "$IMAGE" "${{ env.ECR_REGISTRY }}/${ECR_REPO}:latest"
+          docker tag "$IMAGE" "${{ env.ECR_REGISTRY }}/${ECR_REPO}:${{ steps.meta.outputs.stable-tag }}"
 
       - name: Run security scan
         run: |
@@ -484,25 +478,21 @@ jobs:
         run: |
           ECR_REPO="${{ steps.meta.outputs.ecr-repository }}"
           docker push ${{ env.ECR_REGISTRY }}/${ECR_REPO}:${{ steps.meta.outputs.image-tag }}
-          docker push ${{ env.ECR_REGISTRY }}/${ECR_REPO}:latest
+          docker push ${{ env.ECR_REGISTRY }}/${ECR_REPO}:${{ steps.meta.outputs.stable-tag }}
 
       - name: Update DynamoDB deployment record
         run: |
           TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          DEPLOYMENT_ID="deploy-${{ steps.meta.outputs.short-sha }}"
+          DEPLOYMENT_ID="${{ github.event.inputs.deployment_id || github.run_id }}"
+          REPOSITORY="${{ github.event.inputs.target_repository || github.repository }}"
+          BRANCH="${{ github.event.inputs.target_branch || github.ref_name }}"
 
-          aws dynamodb put-item \
+          aws dynamodb update-item \
             --table-name delightful-deploy-deployment-history \
-            --item "{
-              \"id\": {\"S\": \"${DEPLOYMENT_ID}\"},
-              \"timestamp\": {\"S\": \"${TIMESTAMP}\"},
-              \"repository\": {\"S\": \"${{ github.repository }}\"},
-              \"commit_sha\": {\"S\": \"${{ github.sha }}\"},
-              \"branch\": {\"S\": \"${{ github.ref_name }}\"},
-              \"pusher\": {\"S\": \"${{ github.actor }}\"},
-              \"image_tag\": {\"S\": \"${{ steps.meta.outputs.image-tag }}\"},
-              \"status\": {\"S\": \"building\"}
-            }"
+            --key "{\"id\": {\"S\": \"${DEPLOYMENT_ID}\"}}" \
+            --update-expression "SET #status = :status, #timestamp = :timestamp, repository = :repository, branch = :branch, image_tag = :image_tag, github_run_id = :run_id" \
+            --expression-attribute-names '{"#status":"status","#timestamp":"timestamp"}' \
+            --expression-attribute-values "{\":status\":{\"S\":\"building\"},\":timestamp\":{\"S\":\"${TIMESTAMP}\"},\":repository\":{\"S\":\"${REPOSITORY}\"},\":branch\":{\"S\":\"${BRANCH}\"},\":image_tag\":{\"S\":\"${{ steps.meta.outputs.image-tag }}\"},\":run_id\":{\"S\":\"${{ github.run_id }}\"}}"
 
   deploy-infrastructure:
     name: Deploy Infrastructure (Terraform)
@@ -516,23 +506,32 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::265233844540:role/github-actions-deplight-role
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: "1.5.0"
+          terraform_version: "1.15.8"
           terraform_wrapper: false  # Disable wrapper to get clean outputs
 
       - name: Terraform Init
         working-directory: ./deplight-platform-v3/infrastructure/terraform
-        run: terraform init
+        run: terraform init -reconfigure
+
+      - name: Select Terraform workspace
+        working-directory: ./deplight-platform-v3/infrastructure/terraform
+        run: |
+          if [ -n "${{ github.event.inputs.target_repository }}" ]; then
+            terraform workspace select -or-create "app-${{ github.run_id }}"
+          else
+            terraform workspace select default
+          fi
 
       - name: Prepare Terraform variables for user app
         id: prepare-vars
@@ -571,27 +570,14 @@ jobs:
       - name: Terraform Plan
         working-directory: ./deplight-platform-v3/infrastructure/terraform
         run: |
-          # Base variables for all deployments
-          TF_VARS="-var=image_tag=${{ needs.build-and-test.outputs.image-tag }}"
-          TF_VARS="$TF_VARS -var=commit_sha=${{ github.sha }}"
-          TF_VARS="$TF_VARS -var=container_port=${{ needs.build-and-test.outputs.app-port }}"
-          TF_VARS="$TF_VARS -var=container_cpu=${{ needs.build-and-test.outputs.cpu }}"
-          TF_VARS="$TF_VARS -var=container_memory=${{ needs.build-and-test.outputs.memory }}"
-
-          # If AI-generated tfvars exists, include it
-          if [ -f ai.tfvars ]; then
-            TF_VARS="$TF_VARS -var-file=ai.tfvars"
-            echo "Using AI-generated tfvars (ai.tfvars)"
-          fi
-
-          # Add user app variables if deploying a user app
           if [ "${{ steps.prepare-vars.outputs.deploy_user_app }}" = "true" ]; then
-            TF_VARS="$TF_VARS -var=deploy_user_app=true"
+            TF_VARS="-var=deploy_user_app=true"
             TF_VARS="$TF_VARS -var=user_app_name=${{ steps.prepare-vars.outputs.app_name }}"
             TF_VARS="$TF_VARS -var=user_app_repository_url=${{ github.event.inputs.target_repository }}"
             TF_VARS="$TF_VARS -var=user_app_image=${{ steps.prepare-vars.outputs.ecr_url }}"
             TF_VARS="$TF_VARS -var=user_app_image_tag=${{ needs.build-and-test.outputs.image-tag }}"
             TF_VARS="$TF_VARS -var=user_app_port=${{ needs.build-and-test.outputs.app-port }}"
+            TF_VARS="$TF_VARS -var=user_app_health_check_path=${{ needs.build-and-test.outputs.health-path }}"
             TF_VARS="$TF_VARS -var=user_app_cpu=${{ needs.build-and-test.outputs.cpu }}"
             TF_VARS="$TF_VARS -var=user_app_memory=${{ needs.build-and-test.outputs.memory }}"
             TF_VARS="$TF_VARS -var=user_app_path_prefix=${{ steps.prepare-vars.outputs.path_prefix }}"
@@ -599,26 +585,18 @@ jobs:
             TF_VARS="$TF_VARS -var=user_app_ecs_cluster_name=${{ env.ECS_CLUSTER }}"
           fi
 
-          # Persist args for Apply step
-          echo "$TF_VARS" > tfvars_args
-
           if [ "${{ steps.prepare-vars.outputs.deploy_user_app }}" = "true" ]; then
-            echo "Planning only user_app module with -target to avoid platform resource churn"
-            terraform plan $TF_VARS -target=module.user_app -out=tfplan || echo "Plan returned non-zero; will attempt apply with computed vars"
+            terraform plan $TF_VARS -target=module.user_app -out=tfplan
           else
-            terraform plan $TF_VARS -out=tfplan
+            terraform plan \
+              -target=aws_ecs_task_definition.dashboard \
+              -target=aws_ecs_service.dashboard \
+              -out=tfplan
           fi
 
       - name: Terraform Apply
         working-directory: ./deplight-platform-v3/infrastructure/terraform
-        run: |
-          if [ "${{ steps.prepare-vars.outputs.deploy_user_app }}" = "true" ]; then
-            echo "Applying only user_app module with -target (direct apply with vars)"
-            ARGS=$(cat tfvars_args 2>/dev/null || true)
-            terraform apply -auto-approve $ARGS -target=module.user_app
-          else
-            terraform apply -auto-approve tfplan
-          fi
+        run: terraform apply -auto-approve tfplan
 
       - name: Extract Terraform outputs
         id: tf-outputs
@@ -667,7 +645,7 @@ jobs:
   deploy-ecs:
     name: Deploy to ECS (Rolling)
     needs: [build-and-test, deploy-infrastructure]
-    if: always() && needs.build-and-test.result == 'success'
+    if: needs.build-and-test.result == 'success' && needs.deploy-infrastructure.result == 'success'
     runs-on: ubuntu-latest
 
     outputs:
@@ -677,7 +655,7 @@ jobs:
 
     steps:
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::265233844540:role/github-actions-deplight-role
           aws-region: ${{ env.AWS_REGION }}
@@ -739,39 +717,15 @@ jobs:
         id: deploy-dashboard
         run: |
           echo "🎨 Deploying platform dashboard..."
-
-          # Get current task definition
-          TASK_DEF_ARN=$(aws ecs describe-services \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --services delightful-deploy-dashboard-service \
-            --query 'services[0].taskDefinition' \
-            --output text)
-
-          echo "Current task definition: ${TASK_DEF_ARN}"
-
-          # Describe and prepare new task definition
-          aws ecs describe-task-definition \
-            --task-definition ${TASK_DEF_ARN} \
-            --query 'taskDefinition' > task-def.json
-
-          IMAGE="${{ env.ECR_REGISTRY }}/${{ needs.build-and-test.outputs.ecr-repository }}:${{ needs.build-and-test.outputs.image-tag }}"
-          cat task-def.json | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' > task-def-clean.json
-          cat task-def-clean.json | jq --arg IMG "$IMAGE" '.containerDefinitions[0].image = $IMG' > task-def-updated.json
-
-          # Register new task definition
-          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://task-def-updated.json \
-            --query 'taskDefinition.taskDefinitionArn' \
-            --output text)
-
-          echo "New task definition: ${NEW_TASK_DEF_ARN}"
-
-          # Update dashboard service
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service delightful-deploy-dashboard-service \
-            --task-definition ${NEW_TASK_DEF_ARN} \
-            --force-new-deployment
+            --force-new-deployment \
+            >/dev/null
+
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services delightful-deploy-dashboard-service
 
           echo "✅ Dashboard deployment initiated"
 
@@ -806,7 +760,8 @@ jobs:
         run: |
           set -euo pipefail
           DEPLOYMENT_ID="${{ steps.deployment-info.outputs.deployment-id }}"
-          SERVICE_NAME="user-app-${DEPLOYMENT_ID}"
+          ROUTE_ID="${{ github.run_id }}"
+          SERVICE_NAME="${{ needs.deploy-infrastructure.outputs.user_app_service }}"
           CLUSTER="${{ env.ECS_CLUSTER }}"
           REGION="${{ env.AWS_REGION }}"
           ALB_DNS="${{ steps.alb.outputs.dns }}"
@@ -822,16 +777,16 @@ jobs:
               --query 'taskDefinition.containerDefinitions[0].image' --output text || true
           fi
 
-          echo "--- ALB Listener Rule for /app/${DEPLOYMENT_ID}/* ---"
+          echo "--- ALB Listener Rule for /app/${ROUTE_ID}/* ---"
           LB_ARN=$(aws elbv2 describe-load-balancers --names delightful-deploy-alb --region "$REGION" --query 'LoadBalancers[0].LoadBalancerArn' --output text)
           LISTENER_ARN=$(aws elbv2 describe-listeners --load-balancer-arn "$LB_ARN" --region "$REGION" --query 'Listeners[0].ListenerArn' --output text)
           aws elbv2 describe-rules --listener-arn "$LISTENER_ARN" --region "$REGION" \
-            --query "Rules[?contains(join('', [].Conditions[?Field=='path-pattern'].Values[]), '/app/${DEPLOYMENT_ID}/*')].[Priority,RuleArn]" --output table || true
+            --query "Rules[?contains(join('', [].Conditions[?Field=='path-pattern'].Values[]), '/app/${ROUTE_ID}/*')].[Priority,RuleArn]" --output table
 
           echo "--- Target Group Health ---"
-          TG_ARN=$(aws elbv2 describe-target-groups --names "user-app-${DEPLOYMENT_ID}-tg" --region "$REGION" --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
+          TG_ARN=$(aws elbv2 describe-target-groups --names "${SERVICE_NAME}-tg" --region "$REGION" --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
           if [ -z "$TG_ARN" ] || [ "$TG_ARN" = "None" ]; then
-            TG_ARN=$(aws elbv2 describe-target-groups --region "$REGION" --query "TargetGroups[?contains(TargetGroupName, 'user-app-${DEPLOYMENT_ID}')].TargetGroupArn | [0]" --output text 2>/dev/null || echo "")
+            TG_ARN=$(aws elbv2 describe-target-groups --region "$REGION" --query "TargetGroups[?contains(TargetGroupName, '${SERVICE_NAME}')].TargetGroupArn | [0]" --output text 2>/dev/null || echo "")
           fi
           if [ -n "$TG_ARN" ] && [ "$TG_ARN" != "None" ]; then
             aws elbv2 describe-target-health --target-group-arn "$TG_ARN" --region "$REGION" --query 'TargetHealthDescriptions[*].TargetHealth.State' --output table || true
@@ -847,7 +802,7 @@ jobs:
         run: |
           set -euo pipefail
           DEPLOYMENT_ID="${{ steps.deployment-info.outputs.deployment-id }}"
-          SERVICE_NAME="user-app-${DEPLOYMENT_ID}"
+          SERVICE_NAME="${{ needs.deploy-infrastructure.outputs.user_app_service }}"
           CLUSTER="${{ env.ECS_CLUSTER }}"
           REGION="${{ env.AWS_REGION }}"
 
@@ -875,7 +830,7 @@ jobs:
           fi
 
           echo "=== Target Group Detailed Health ==="
-          TG_ARN=$(aws elbv2 describe-target-groups --region "$REGION" --query "TargetGroups[?contains(TargetGroupName, 'user-app-${DEPLOYMENT_ID}')].TargetGroupArn | [0]" --output text 2>/dev/null || echo "")
+          TG_ARN=$(aws elbv2 describe-target-groups --region "$REGION" --query "TargetGroups[?contains(TargetGroupName, '${SERVICE_NAME}')].TargetGroupArn | [0]" --output text 2>/dev/null || echo "")
           if [ -n "$TG_ARN" ] && [ "$TG_ARN" != "None" ]; then
             aws elbv2 describe-target-health --target-group-arn "$TG_ARN" --region "$REGION" \
               --query 'TargetHealthDescriptions[].{Target:Target,State:TargetHealth.State,Reason:TargetHealth.Reason,Description:TargetHealth.Description}' \
@@ -920,7 +875,7 @@ jobs:
       - name: Wait for service warmup
         run: /usr/bin/sleep 30
 
-      - name: Health check (path-aware, 2xx-4xx acceptable)
+      - name: Health check (path-aware)
         run: |
           set -euo pipefail
           BASE_URL="${{ needs.deploy-ecs.outputs.url || format('http://{0}', needs.deploy-ecs.outputs.alb-dns) }}"
@@ -930,8 +885,9 @@ jobs:
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             echo "Health check attempt $((RETRY_COUNT + 1))/$MAX_RETRIES..."
             for HEALTH_PATH in "/api/health" "/health" "/"; do
-              CODE=$(/usr/bin/curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}${HEALTH_PATH}" --max-time 10 || echo 000)
-              if [ "$CODE" -ge 200 ] && [ "$CODE" -lt 500 ]; then
+              CODE=$(/usr/bin/curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}${HEALTH_PATH}" --max-time 10 || true)
+              CODE=${CODE:-000}
+              if [ "$CODE" -ge 200 ] && [ "$CODE" -lt 400 ]; then
                 echo "✓ Health check passed at ${BASE_URL}${HEALTH_PATH} (HTTP $CODE)"
                 exit 0
               else
@@ -963,7 +919,7 @@ jobs:
 
     steps:
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::265233844540:role/github-actions-deplight-role
           aws-region: ${{ env.AWS_REGION }}
@@ -1019,13 +975,13 @@ jobs:
 
   notify:
     name: Notify Results
-    needs: [create-release, build-and-test, deploy-ecs, smoke-test, store-artifacts]
+    needs: [create-release, build-and-test, deploy-infrastructure, deploy-ecs, smoke-test, store-artifacts]
     runs-on: ubuntu-latest
     if: always()
 
     steps:
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::265233844540:role/github-actions-deplight-role
           aws-region: ${{ env.AWS_REGION }}
@@ -1259,14 +1215,15 @@ jobs:
                 \"completed_at\": {\"S\": \"${TIMESTAMP}\"},
                 \"analysis_id\": {\"S\": \"${ANALYSIS_ID}\"},
                 \"deployment_url\": {\"S\": \"${DEPLOYMENT_URL}\"},
+                \"ecs_service_name\": {\"S\": \"${{ needs.deploy-infrastructure.outputs.user_app_service }}\"},
+                \"github_run_id\": {\"S\": \"${{ github.run_id }}\"},
                 \"image_tag\": {\"S\": \"${IMAGE_TAG}\"},
                 \"pusher\": {\"S\": \"${{ github.actor }}\"},
                 \"platform_repo\": {\"S\": \"${{ github.repository }}\"}
               }"
           else
             # Platform deployment - update existing record
-            SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-            DEPLOYMENT_ID="deploy-${SHORT_SHA}"
+            DEPLOYMENT_ID="${{ github.event.inputs.deployment_id || github.run_id }}"
 
             aws dynamodb update-item \
               --table-name delightful-deploy-deployment-history \
@@ -1311,14 +1268,4 @@ jobs:
             echo "Uploaded logs to s3://${S3_BUCKET}/deployments/${RELEASE_TAG}/workflow-logs.zip"
           else
             echo "No logs downloaded"
-          fi
-      - name: Select ECS service (main vs dashboard)
-        id: select-service
-        run: |
-          if [ -n "${{ github.event.inputs.target_repository }}" ]; then
-            echo "service=${{ env.ECS_SERVICE }}" >> $GITHUB_OUTPUT
-            echo "Selected service: ${{ env.ECS_SERVICE }}"
-          else
-            echo "service=delightful-deploy-dashboard-service" >> $GITHUB_OUTPUT
-            echo "Selected service: delightful-deploy-dashboard-service"
           fi

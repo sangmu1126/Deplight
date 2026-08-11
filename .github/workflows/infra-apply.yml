@@ -4,74 +4,98 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Target environment'
+        description: "Target environment"
         required: true
-        default: 'dev'
+        default: "dev"
         type: choice
-        options:
-          - dev
-          - staging
-          - production
+        options: [dev, staging, production]
 
 permissions:
   id-token: write
   contents: read
 
+concurrency:
+  group: delightful-deploy-terraform-${{ inputs.environment }}
+  cancel-in-progress: false
+
 env:
   AWS_REGION: ap-northeast-2
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_VAR_environment: ${{ inputs.environment }}
+  TF_VAR_commit_sha: ${{ github.sha }}
 
 jobs:
   terraform-apply:
-    name: Apply Terraform
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          python-version: "3.12"
 
-      - name: Package Lambda Function
-        run: |
-          cd lambda/ai_code_analyzer
-          pip install -r requirements.txt -t .
-          cd ../..
-          mkdir -p build
-          cd lambda/ai_code_analyzer
-          zip -r ../../build/ai_analyzer.zip . -x "*.pyc" -x "__pycache__/*" -x "*.git/*"
-          ls -lh ../../build/ai_analyzer.zip
+      - name: Package Lambda function
+        working-directory: ./deplight-platform-v3
+        run: ./scripts/package_lambda.sh
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: '1.5.0'
+          terraform_version: "1.15.8"
 
-      - name: Terraform Init
-        working-directory: ./infrastructure/terraform
-        run: terraform init
+      - name: Terraform format check
+        working-directory: ./deplight-platform-v3/infrastructure/terraform
+        run: terraform fmt -check -recursive
 
-      - name: Terraform Plan
-        working-directory: ./infrastructure/terraform
+      - name: Terraform init
+        working-directory: ./deplight-platform-v3/infrastructure/terraform
+        run: terraform init -reconfigure
+
+      - name: Select platform workspace
+        working-directory: ./deplight-platform-v3/infrastructure/terraform
+        run: terraform workspace select default
+
+      - name: Terraform validate
+        working-directory: ./deplight-platform-v3/infrastructure/terraform
+        run: terraform validate
+
+      - name: Terraform plan
+        working-directory: ./deplight-platform-v3/infrastructure/terraform
+        run: terraform plan -out=tfplan
+
+      - name: Reject unintentional destroys
+        working-directory: ./deplight-platform-v3/infrastructure/terraform
         run: |
-          terraform plan -out=tfplan
+          DELETE_COUNT=$(terraform show -json tfplan | jq '[
+            .resource_changes[]
+            | select(.change.actions == ["delete"])
+          ] | length')
+          if [ "$DELETE_COUNT" -ne 0 ]; then
+            echo "Refusing to apply a plan containing ${DELETE_COUNT} delete-only actions."
+            terraform show -json tfplan | jq -r '
+              .resource_changes[]
+              | select(.change.actions == ["delete"])
+              | .address'
+            exit 1
+          fi
 
-      - name: Terraform Apply
-        working-directory: ./infrastructure/terraform
+      - name: Terraform apply
+        working-directory: ./deplight-platform-v3/infrastructure/terraform
         run: terraform apply -auto-approve tfplan
 
       - name: Verify ECS services
         run: |
-          echo "Cluster: delightful-deploy-cluster"
           aws ecs describe-services \
             --cluster delightful-deploy-cluster \
             --services delightful-deploy-service delightful-deploy-dashboard-service \
-            --output table || true
+            --query 'services[].{service:serviceName,desired:desiredCount,running:runningCount,pending:pendingCount,status:status}' \
+            --output table
