@@ -12,6 +12,10 @@ REGION="ap-northeast-2"
 S3_BUCKET="delightful-deploy-artifacts-265233844540"
 ECR_REPO="delightful-deploy"
 SSM_PARAM_NAME="/delightful-deploy/openai-api-key"
+GITHUB_ACTIONS_ROLE="github-actions-deplight-role"
+TERRAFORM_BOOTSTRAP_POLICY_NAME="TerraformV3BootstrapAccess"
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+TERRAFORM_BOOTSTRAP_POLICY_FILE="${SCRIPT_DIR}/../infrastructure/iam/terraform-v3-bootstrap-access.json"
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}Delightful Deploy - AWS Bootstrap${NC}"
@@ -44,7 +48,20 @@ aws ssm get-parameter \
   --output text >/dev/null
 echo -e "${GREEN}  ✅ SSM parameter exists: ${SSM_PARAM_NAME}${NC}"
 
-# 4. Get VPC and Subnet information
+# 4. Apply the deployment role's Terraform bootstrap permissions. This policy
+# is intentionally kept as a reviewed file instead of an ad-hoc console edit.
+echo -e "\n${YELLOW}🔐 Applying GitHub Actions Terraform bootstrap policy...${NC}"
+aws iam get-role \
+  --role-name "${GITHUB_ACTIONS_ROLE}" \
+  --query 'Role.RoleName' \
+  --output text >/dev/null
+aws iam put-role-policy \
+  --role-name "${GITHUB_ACTIONS_ROLE}" \
+  --policy-name "${TERRAFORM_BOOTSTRAP_POLICY_NAME}" \
+  --policy-document "file://${TERRAFORM_BOOTSTRAP_POLICY_FILE}"
+echo -e "${GREEN}  ✅ IAM policy applied: ${GITHUB_ACTIONS_ROLE}/${TERRAFORM_BOOTSTRAP_POLICY_NAME}${NC}"
+
+# 5. Get VPC and Subnet information
 echo -e "\n${YELLOW}🌐 Getting VPC and subnet information...${NC}"
 VPC_ID=$(aws ec2 describe-vpcs \
   --region ${REGION} \

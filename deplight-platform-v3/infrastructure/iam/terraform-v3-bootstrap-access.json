@@ -1,0 +1,94 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadTerraformIamMetadata",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion",
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListInstanceProfilesForRole",
+        "iam:ListPolicyVersions",
+        "iam:ListRolePolicies",
+        "iam:ListRoles"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ManageDelightfulDeployRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:AttachRolePolicy",
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:DeleteRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:PassRole",
+        "iam:PutRolePolicy",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:UpdateAssumeRolePolicy",
+        "iam:UpdateRole",
+        "iam:UpdateRoleDescription"
+      ],
+      "Resource": "arn:aws:iam::265233844540:role/delightful-deploy-*"
+    },
+    {
+      "Sid": "TagUserAppSecurityGroupsOnCreate",
+      "Effect": "Allow",
+      "Action": "ec2:CreateTags",
+      "Resource": "arn:aws:ec2:ap-northeast-2:265233844540:security-group/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:CreateAction": "CreateSecurityGroup"
+        }
+      }
+    },
+    {
+      "Sid": "ManageTaggedUserAppSecurityGroupRules",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:AuthorizeSecurityGroupEgress",
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:DeleteSecurityGroup",
+        "ec2:RevokeSecurityGroupEgress",
+        "ec2:RevokeSecurityGroupIngress"
+      ],
+      "Resource": "arn:aws:ec2:ap-northeast-2:265233844540:security-group/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/ManagedBy": "Terraform"
+        },
+        "StringLike": {
+          "ec2:ResourceTag/AppName": "user-app-*"
+        }
+      }
+    },
+    {
+      "Sid": "ManageDelightfulDeployQueues",
+      "Effect": "Allow",
+      "Action": "sqs:*",
+      "Resource": "arn:aws:sqs:ap-northeast-2:265233844540:delightful-deploy-*"
+    },
+    {
+      "Sid": "ManageDelightfulDeployTopics",
+      "Effect": "Allow",
+      "Action": "sns:*",
+      "Resource": "arn:aws:sns:ap-northeast-2:265233844540:delightful-deploy-*"
+    },
+    {
+      "Sid": "ManageXRaySamplingRules",
+      "Effect": "Allow",
+      "Action": [
+        "xray:CreateSamplingRule",
+        "xray:DeleteSamplingRule",
+        "xray:GetSamplingRules",
+        "xray:UpdateSamplingRule"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

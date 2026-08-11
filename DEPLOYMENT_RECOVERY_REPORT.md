@@ -24,7 +24,7 @@
 - 테스트 앱 URL `http://delightful-deploy-alb-1528624322.ap-northeast-2.elb.amazonaws.com/app/31478483359/`은 `200 OK`를 반환한다.
 - 테스트 앱 Target Group은 `healthy`다.
 - Terraform 적용 결과는 URL rewrite와 health matcher 각각 `0 added, 1 changed, 0 destroyed`였다.
-- 최신 반영 커밋은 `8672d32`이며 `main`과 `origin/main`이 일치한다.
+- 애플리케이션 복구 기준 커밋은 `8672d32`이며, 이후 운영 검증과 IAM 재현성 보강을 별도 커밋으로 추가했다.
 
 ## 2. 현재 배포 구조
 
@@ -146,7 +146,7 @@ Terraform이 사용자 앱 Security Group을 만들 수는 있었지만 생성 �
 - 재실행에서 Terraform Plan과 Apply가 모두 통과했다.
 - 생성된 SG와 workspace state를 보존해 Terraform 소유권을 유지했다.
 
-> 중요: 이 IAM 변경은 현재 AWS 실환경 inline policy에 적용돼 있지만 저장소 Terraform의 완전한 source of truth로 옮겨지지 않았다. 후속 코드화가 필요하다.
+이 정책은 `infrastructure/iam/terraform-v3-bootstrap-access.json`에 source of truth로 저장하고, 관리자용 `scripts/bootstrap_aws.sh`가 `TerraformV3BootstrapAccess` inline policy로 반복 적용할 수 있게 연결했다.
 
 ### 3.5 정상 인프라를 실패로 판정하던 Actions 검증 수정
 
@@ -276,10 +276,11 @@ flowchart TD
 | `b7bfe5b` | 기본 ALB rule null 처리 |
 | `adc9186` | ALB user-app prefix 제거 |
 | `8672d32` | 범용 사용자 앱 health 판정 |
+| `fc0e41e` | Target Group health를 Actions 배포 성공 기준으로 전환 |
 
-## 6. 아직 남은 중요 작업
+## 6. 후속 정비 결과와 남은 중요 작업
 
-### 6.1 GitHub hosted runner의 ALB HTTP timeout
+### 6.1 GitHub hosted runner의 ALB HTTP timeout 판정 분리 — 완료
 
 로컬에서는 ALB의 두 IP 모두 즉시 응답하지만 GitHub hosted runner에서는 동일 URL이 10초 timeout과 `HTTP 000`을 반복했다.
 
@@ -290,15 +291,15 @@ flowchart TD
 - 두 ALB subnet의 NACL은 ingress/egress 전체 허용이다.
 - 로컬에서 두 ALB IP를 각각 지정해도 HTTP 응답이 온다.
 
-따라서 현재 smoke test는 앱 장애와 GitHub runner→ALB 네트워크 경로 장애를 구분하지 못한다. 권장 후속 조치는 다음과 같다.
+따라서 smoke test가 앱 장애와 GitHub runner→ALB 네트워크 경로 장애를 구분하도록 다음과 같이 변경했다.
 
 1. 배포 성공의 필수 판정은 AWS Target Group `healthy`로 수행한다.
-2. public URL curl은 별도 비차단 관측 항목으로 유지한다.
-3. curl 재시도는 현재 최대 약 7분에서 더 짧게 줄인다.
+2. public URL curl은 5초 제한의 비차단 관측 항목으로 유지한다.
+3. Target Group은 최대 3분 동안 확인하고, 실패 시 상태·사유·설명을 출력한다.
 
-### 6.2 운영 IAM 변경의 코드화
+### 6.2 운영 IAM 변경의 코드화 — 완료
 
-`TerraformV3BootstrapAccess`의 SG 권한은 AWS에 직접 반영된 상태다. 계정 재구축이나 역할 교체 시 유실되지 않도록 Terraform 또는 별도 bootstrap 문서의 source of truth로 옮겨야 한다.
+`TerraformV3BootstrapAccess`의 SG 권한은 실환경과 bootstrap 정책 파일에 함께 반영됐다. 계정 재구축이나 역할 교체 시 관리자 권한으로 `scripts/bootstrap_aws.sh`를 실행해 동일 정책을 복원한다.
 
 ### 6.3 targeted apply 의존 축소
 
