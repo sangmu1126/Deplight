@@ -207,7 +207,7 @@ resource "aws_ecs_task_definition" "dashboard" {
         { name = "ENVIRONMENT", value = var.environment },
         { name = "ALB_DNS", value = aws_lb.main.dns_name },
         { name = "AWS_REGION", value = var.aws_region },
-        { name = "MANGO_REPO", value = "Softbank-mango/deplight-platform-v3" }
+        { name = "MANGO_REPO", value = "sangmu1126/Deplight" }
       ]
 
       secrets = concat(

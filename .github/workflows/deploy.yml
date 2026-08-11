@@ -378,24 +378,6 @@ jobs:
           echo "✅ Dockerfile ready"
           ls -la ./user_repo/Dockerfile || echo "No Dockerfile found"
 
-      - name: Download AI-generated Terraform tfvars from S3
-        if: github.event.inputs.target_repository
-        id: dl-tfvars
-        run: |
-          echo "📥 Downloading AI-generated Terraform tfvars from S3..."
-          ANALYSIS_ID="${{ steps.ai-analysis.outputs.analysis_id }}"
-          S3_BUCKET="${{ env.S3_ARTIFACTS_BUCKET }}"
-          mkdir -p infrastructure/terraform
-          # Try both keys used by the analyzer
-          aws s3 cp "s3://${S3_BUCKET}/analysis/${ANALYSIS_ID}/terraform_tfvars" infrastructure/terraform/ai.tfvars || true
-          aws s3 cp "s3://${S3_BUCKET}/analysis/${ANALYSIS_ID}/terraform.tfvars" infrastructure/terraform/ai.tfvars || true
-          if [ -f infrastructure/terraform/ai.tfvars ]; then
-            echo "ai_tfvars=present" >> $GITHUB_OUTPUT
-            echo "✅ Downloaded ai.tfvars"
-          else
-            echo "⚠️ No ai.tfvars found; proceeding with defaults"
-          fi
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -404,11 +386,13 @@ jobs:
         run: |
           if [ -n "${{ github.event.inputs.target_repository }}" ]; then
             BUILD_PATH="user_repo"
+            DOCKERFILE_PATH="$BUILD_PATH/Dockerfile"
           else
-            BUILD_PATH="./deplight-platform-v3/dashboard"
+            BUILD_PATH="."
+            DOCKERFILE_PATH="./deplight-app/Dockerfile"
           fi
-          DOCKERFILE_PATH="$BUILD_PATH/Dockerfile"
           echo "build-path=${BUILD_PATH}" >> $GITHUB_OUTPUT
+          echo "dockerfile-path=${DOCKERFILE_PATH}" >> $GITHUB_OUTPUT
           if [ -f "$DOCKERFILE_PATH" ]; then
             echo "has-dockerfile=true" >> $GITHUB_OUTPUT
             echo "Dockerfile detected at $DOCKERFILE_PATH"
@@ -434,6 +418,7 @@ jobs:
             REPO_NAME=$(echo "${{ github.event.inputs.target_repository }}" | sed 's|.*/||' | sed 's|\.git$||' | tr '[:upper:]' '[:lower:]')
             ECR_REPO="user-app-${REPO_NAME}"
             echo "ecr-repository=${ECR_REPO}" >> $GITHUB_OUTPUT
+            echo "stable-tag=latest" >> $GITHUB_OUTPUT
 
             # Create ECR repository if it doesn't exist
             aws ecr describe-repositories --repository-names "${ECR_REPO}" --region ${{ env.AWS_REGION }} 2>/dev/null || \
@@ -441,6 +426,7 @@ jobs:
           else
             # Platform deployment uses default repository
             echo "ecr-repository=${{ env.ECR_REPOSITORY }}" >> $GITHUB_OUTPUT
+            echo "stable-tag=dashboard-latest" >> $GITHUB_OUTPUT
           fi
 
           echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
@@ -451,7 +437,8 @@ jobs:
         run: |
           ECR_REPO="${{ steps.meta.outputs.ecr-repository }}"
           docker build -t ${{ env.ECR_REGISTRY }}/${ECR_REPO}:${{ steps.meta.outputs.image-tag }} \
-                       -t ${{ env.ECR_REGISTRY }}/${ECR_REPO}:latest \
+                       -t ${{ env.ECR_REGISTRY }}/${ECR_REPO}:${{ steps.meta.outputs.stable-tag }} \
+                       -f "${{ steps.detect.outputs.dockerfile-path }}" \
                        "${{ steps.detect.outputs.build-path }}"
 
       - name: Install Pack CLI (Buildpacks)
@@ -472,8 +459,7 @@ jobs:
             --path "${{ steps.detect.outputs.build-path }}" \
             --builder paketobuildpacks/builder-jammy-base \
             --env "BP_LOG_LEVEL=info"
-          # Also tag latest
-          docker tag "$IMAGE" "${{ env.ECR_REGISTRY }}/${ECR_REPO}:latest"
+          docker tag "$IMAGE" "${{ env.ECR_REGISTRY }}/${ECR_REPO}:${{ steps.meta.outputs.stable-tag }}"
 
       - name: Run security scan
         run: |
@@ -484,7 +470,7 @@ jobs:
         run: |
           ECR_REPO="${{ steps.meta.outputs.ecr-repository }}"
           docker push ${{ env.ECR_REGISTRY }}/${ECR_REPO}:${{ steps.meta.outputs.image-tag }}
-          docker push ${{ env.ECR_REGISTRY }}/${ECR_REPO}:latest
+          docker push ${{ env.ECR_REGISTRY }}/${ECR_REPO}:${{ steps.meta.outputs.stable-tag }}
 
       - name: Update DynamoDB deployment record
         run: |
@@ -527,7 +513,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.5.0"
+          terraform_version: "1.15.8"
           terraform_wrapper: false  # Disable wrapper to get clean outputs
 
       - name: Terraform Init
@@ -571,22 +557,8 @@ jobs:
       - name: Terraform Plan
         working-directory: ./deplight-platform-v3/infrastructure/terraform
         run: |
-          # Base variables for all deployments
-          TF_VARS="-var=image_tag=${{ needs.build-and-test.outputs.image-tag }}"
-          TF_VARS="$TF_VARS -var=commit_sha=${{ github.sha }}"
-          TF_VARS="$TF_VARS -var=container_port=${{ needs.build-and-test.outputs.app-port }}"
-          TF_VARS="$TF_VARS -var=container_cpu=${{ needs.build-and-test.outputs.cpu }}"
-          TF_VARS="$TF_VARS -var=container_memory=${{ needs.build-and-test.outputs.memory }}"
-
-          # If AI-generated tfvars exists, include it
-          if [ -f ai.tfvars ]; then
-            TF_VARS="$TF_VARS -var-file=ai.tfvars"
-            echo "Using AI-generated tfvars (ai.tfvars)"
-          fi
-
-          # Add user app variables if deploying a user app
           if [ "${{ steps.prepare-vars.outputs.deploy_user_app }}" = "true" ]; then
-            TF_VARS="$TF_VARS -var=deploy_user_app=true"
+            TF_VARS="-var=deploy_user_app=true"
             TF_VARS="$TF_VARS -var=user_app_name=${{ steps.prepare-vars.outputs.app_name }}"
             TF_VARS="$TF_VARS -var=user_app_repository_url=${{ github.event.inputs.target_repository }}"
             TF_VARS="$TF_VARS -var=user_app_image=${{ steps.prepare-vars.outputs.ecr_url }}"
@@ -597,28 +569,15 @@ jobs:
             TF_VARS="$TF_VARS -var=user_app_path_prefix=${{ steps.prepare-vars.outputs.path_prefix }}"
             TF_VARS="$TF_VARS -var=user_app_alb_name=delightful-deploy-alb"
             TF_VARS="$TF_VARS -var=user_app_ecs_cluster_name=${{ env.ECS_CLUSTER }}"
-          fi
-
-          # Persist args for Apply step
-          echo "$TF_VARS" > tfvars_args
-
-          if [ "${{ steps.prepare-vars.outputs.deploy_user_app }}" = "true" ]; then
             echo "Planning only user_app module with -target to avoid platform resource churn"
-            terraform plan $TF_VARS -target=module.user_app -out=tfplan || echo "Plan returned non-zero; will attempt apply with computed vars"
+            terraform plan $TF_VARS -target=module.user_app -out=tfplan
           else
-            terraform plan $TF_VARS -out=tfplan
+            terraform plan -out=tfplan
           fi
 
       - name: Terraform Apply
         working-directory: ./deplight-platform-v3/infrastructure/terraform
-        run: |
-          if [ "${{ steps.prepare-vars.outputs.deploy_user_app }}" = "true" ]; then
-            echo "Applying only user_app module with -target (direct apply with vars)"
-            ARGS=$(cat tfvars_args 2>/dev/null || true)
-            terraform apply -auto-approve $ARGS -target=module.user_app
-          else
-            terraform apply -auto-approve tfplan
-          fi
+        run: terraform apply -auto-approve tfplan
 
       - name: Extract Terraform outputs
         id: tf-outputs
@@ -739,38 +698,9 @@ jobs:
         id: deploy-dashboard
         run: |
           echo "🎨 Deploying platform dashboard..."
-
-          # Get current task definition
-          TASK_DEF_ARN=$(aws ecs describe-services \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --services delightful-deploy-dashboard-service \
-            --query 'services[0].taskDefinition' \
-            --output text)
-
-          echo "Current task definition: ${TASK_DEF_ARN}"
-
-          # Describe and prepare new task definition
-          aws ecs describe-task-definition \
-            --task-definition ${TASK_DEF_ARN} \
-            --query 'taskDefinition' > task-def.json
-
-          IMAGE="${{ env.ECR_REGISTRY }}/${{ needs.build-and-test.outputs.ecr-repository }}:${{ needs.build-and-test.outputs.image-tag }}"
-          cat task-def.json | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' > task-def-clean.json
-          cat task-def-clean.json | jq --arg IMG "$IMAGE" '.containerDefinitions[0].image = $IMG' > task-def-updated.json
-
-          # Register new task definition
-          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://task-def-updated.json \
-            --query 'taskDefinition.taskDefinitionArn' \
-            --output text)
-
-          echo "New task definition: ${NEW_TASK_DEF_ARN}"
-
-          # Update dashboard service
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service delightful-deploy-dashboard-service \
-            --task-definition ${NEW_TASK_DEF_ARN} \
             --force-new-deployment
 
           echo "✅ Dashboard deployment initiated"
