@@ -75,11 +75,6 @@ variable "subnet_ids" {
   type        = list(string)
 }
 
-variable "security_group_id" {
-  description = "Security group ID for ECS tasks"
-  type        = string
-}
-
 variable "assign_public_ip" {
   description = "Assign public IP to ECS tasks (required for public subnets)"
   type        = bool

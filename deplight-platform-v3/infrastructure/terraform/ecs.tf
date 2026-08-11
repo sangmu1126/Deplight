@@ -65,8 +65,8 @@ resource "aws_ecs_task_definition" "app" {
 
       secrets = [
         {
-          name      = "LETSUR_API_KEY"
-          valueFrom = var.letsur_api_key_param
+          name      = "OPENAI_API_KEY"
+          valueFrom = var.openai_api_key_param
         }
       ]
 
@@ -103,16 +103,17 @@ resource "aws_ecs_task_definition" "app" {
 
 # ECS Service
 resource "aws_ecs_service" "app" {
-  name            = "${var.app_name}-service"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.app.arn
-  desired_count   = var.desired_count
-  launch_type     = "FARGATE"
+  name                  = "${var.app_name}-service"
+  cluster               = aws_ecs_cluster.main.id
+  task_definition       = aws_ecs_task_definition.app.arn
+  desired_count         = var.desired_count
+  launch_type           = "FARGATE"
+  wait_for_steady_state = true
 
   network_configuration {
     subnets          = var.private_subnet_ids
     security_groups  = [aws_security_group.ecs_tasks.id]
-    assign_public_ip = false
+    assign_public_ip = true
   }
 
   # Use Blue-Green deployment if enabled
@@ -215,15 +216,20 @@ resource "aws_ecs_task_definition" "dashboard" {
         { name = "ENVIRONMENT", value = var.environment },
         { name = "ALB_DNS", value = aws_lb.main.dns_name },
         { name = "AWS_REGION", value = var.aws_region },
-        { name = "MANGO_REPO", value = "Softbank-mango/deplight-platform-v3" }
+        { name = "MANGO_REPO", value = "sangmu1126/Deplight" },
+        { name = "CORS_ORIGINS", value = "http://${aws_lb.main.dns_name}" }
       ]
 
-      secrets = [
-        {
+      secrets = concat(
+        var.enable_dashboard_github_dispatch ? [{
           name      = "GITHUB_TOKEN"
-          valueFrom = "/delightful/github/token"
-        }
-      ]
+          valueFrom = var.github_token_param
+        }] : [],
+        var.enable_dashboard_deployments ? [{
+          name      = "DASHBOARD_API_KEY"
+          valueFrom = var.dashboard_api_key_param
+        }] : []
+      )
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -238,11 +244,12 @@ resource "aws_ecs_task_definition" "dashboard" {
 }
 
 resource "aws_ecs_service" "dashboard" {
-  name            = "${var.app_name}-dashboard-service"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.dashboard.arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
+  name                  = "${var.app_name}-dashboard-service"
+  cluster               = aws_ecs_cluster.main.id
+  task_definition       = aws_ecs_task_definition.dashboard.arn
+  desired_count         = 1
+  launch_type           = "FARGATE"
+  wait_for_steady_state = true
 
   network_configuration {
     subnets          = var.public_subnet_ids

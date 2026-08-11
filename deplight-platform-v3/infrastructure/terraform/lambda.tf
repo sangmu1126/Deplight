@@ -4,7 +4,7 @@ resource "aws_lambda_function" "ai_analyzer" {
   role          = var.use_existing_roles ? var.lambda_analyzer_role_arn : aws_iam_role.lambda_analyzer[0].arn
   handler       = "handler.lambda_handler"
   runtime       = "python3.12"
-  timeout       = 900  # 15 minutes for comprehensive analysis
+  timeout       = 900 # 15 minutes for comprehensive analysis
   memory_size   = 1024
 
   filename         = "../../build/ai_analyzer.zip"
@@ -12,9 +12,9 @@ resource "aws_lambda_function" "ai_analyzer" {
 
   environment {
     variables = {
-      LETSUR_API_KEY_PARAM = var.letsur_api_key_param
-      LETSUR_BASE_URL      = var.letsur_base_url
-      LETSUR_MODEL         = var.letsur_model
+      OPENAI_API_KEY_PARAM = var.openai_api_key_param
+      OPENAI_BASE_URL      = var.openai_base_url
+      OPENAI_MODEL         = var.openai_model
       GARDEN_STATE_TABLE   = aws_dynamodb_table.garden_state.name
       AI_ANALYSIS_TABLE    = aws_dynamodb_table.ai_analysis.name
       DEPLOYMENT_TABLE     = aws_dynamodb_table.deployment_history.name
@@ -39,7 +39,7 @@ resource "aws_lambda_function" "ai_analyzer" {
 # Lambda Function URL (for direct HTTP invocation from GitHub webhooks)
 resource "aws_lambda_function_url" "ai_analyzer" {
   function_name      = aws_lambda_function.ai_analyzer.function_name
-  authorization_type = "NONE"  # Use API Gateway or custom auth in production
+  authorization_type = "NONE" # Use API Gateway or custom auth in production
 
   cors {
     allow_credentials = false
@@ -60,7 +60,7 @@ resource "aws_lambda_function_url" "ai_analyzer" {
 # Dead Letter Queue for failed Lambda invocations
 resource "aws_sqs_queue" "lambda_dlq" {
   name                      = "${var.app_name}-lambda-dlq"
-  message_retention_seconds = 1209600  # 14 days
+  message_retention_seconds = 1209600 # 14 days
   receive_wait_time_seconds = 20
 
   tags = {
@@ -122,7 +122,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_duration" {
   namespace           = "AWS/Lambda"
   period              = "60"
   statistic           = "Average"
-  threshold           = "300000"  # 5 minutes
+  threshold           = "300000" # 5 minutes
   alarm_description   = "This alarm monitors Lambda function duration"
   treat_missing_data  = "notBreaching"
 

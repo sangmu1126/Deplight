@@ -16,9 +16,42 @@ data "aws_lb_listener" "http" {
   port              = 80
 }
 
+resource "aws_security_group" "user_app" {
+  name_prefix = "${var.app_name}-"
+  description = "Allow ALB traffic to ${var.app_name}"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port       = var.container_port
+    to_port         = var.container_port
+    protocol        = "tcp"
+    security_groups = [one(data.aws_lb.main.security_groups)]
+    description     = "Allow application traffic from the platform ALB"
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow all outbound traffic"
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  tags = {
+    Name       = "${var.app_name}-sg"
+    AppName    = var.app_name
+    Repository = var.repository_url
+    ManagedBy  = "Terraform"
+  }
+}
+
 # Target Group for the user app
 resource "aws_lb_target_group" "user_app" {
-  name        = substr("${var.app_name}-tg", 0, 32)  # AWS limit is 32 chars
+  name        = substr("${var.app_name}-tg", 0, 32) # AWS limit is 32 chars
   port        = var.container_port
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
@@ -32,7 +65,7 @@ resource "aws_lb_target_group" "user_app" {
     interval            = 30
     path                = var.health_check_path
     protocol            = "HTTP"
-    matcher             = "200-499"  # Accept most responses to avoid false negatives
+    matcher             = "200-399"
   }
 
   deregistration_delay = 30
@@ -61,7 +94,7 @@ resource "aws_lb_listener_rule" "user_app" {
 
   condition {
     path_pattern {
-      values = ["/${var.path_prefix}/*"]
+      values = ["/${var.path_prefix}", "/${var.path_prefix}/*"]
     }
   }
 
@@ -150,15 +183,17 @@ resource "aws_ecs_task_definition" "user_app" {
 
 # ECS Service for user app
 resource "aws_ecs_service" "user_app" {
-  name            = var.app_name
-  cluster         = data.aws_ecs_cluster.main.arn
-  task_definition = aws_ecs_task_definition.user_app.arn
-  desired_count   = var.desired_count
-  launch_type     = "FARGATE"
+  name                              = var.app_name
+  cluster                           = data.aws_ecs_cluster.main.arn
+  task_definition                   = aws_ecs_task_definition.user_app.arn
+  desired_count                     = var.desired_count
+  launch_type                       = "FARGATE"
+  wait_for_steady_state             = true
+  health_check_grace_period_seconds = 60
 
   network_configuration {
     subnets          = var.subnet_ids
-    security_groups  = [var.security_group_id]
+    security_groups  = [aws_security_group.user_app.id]
     assign_public_ip = var.assign_public_ip
   }
 
@@ -194,12 +229,6 @@ resource "aws_ecs_service" "user_app" {
     Repository = var.repository_url
   }
 
-  lifecycle {
-    ignore_changes = [
-      # Allow task definition to be updated externally without Terraform detecting drift
-      task_definition,
-    ]
-  }
 }
 
 # CloudWatch Alarms for user app
