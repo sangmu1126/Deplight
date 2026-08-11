@@ -1217,7 +1217,7 @@ jobs:
           # Check if this is a user app deployment
           if [ -n "${{ github.event.inputs.target_repository }}" ]; then
             # User app deployment - create complete record in deployment-history
-            DEPLOYMENT_ID="${{ needs.deploy-ecs.outputs.deployment-id }}"
+            DEPLOYMENT_ID="${{ github.event.inputs.deployment_id || needs.deploy-ecs.outputs.deployment-id || github.run_id }}"
             TARGET_REPO="${{ github.event.inputs.target_repository }}"
             ANALYSIS_ID="${{ needs.build-and-test.outputs.analysis-id }}"
             DEPLOYMENT_URL="${{ needs.deploy-ecs.outputs.url }}"
