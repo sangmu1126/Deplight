@@ -804,8 +804,9 @@ jobs:
           echo "--- ALB Listener Rule for /app/${ROUTE_ID}/* ---"
           LB_ARN=$(aws elbv2 describe-load-balancers --names delightful-deploy-alb --region "$REGION" --query 'LoadBalancers[0].LoadBalancerArn' --output text)
           LISTENER_ARN=$(aws elbv2 describe-listeners --load-balancer-arn "$LB_ARN" --region "$REGION" --query 'Listeners[0].ListenerArn' --output text)
-          aws elbv2 describe-rules --listener-arn "$LISTENER_ARN" --region "$REGION" \
-            --query "Rules[?contains(join('', [].Conditions[?Field=='path-pattern'].Values[]), '/app/${ROUTE_ID}/*')].[Priority,RuleArn]" --output table
+          aws elbv2 describe-rules --listener-arn "$LISTENER_ARN" --region "$REGION" --output json | \
+            jq --arg path "/app/${ROUTE_ID}/*" \
+              '.Rules[] | select(any(.Conditions[]?; .Field == "path-pattern" and any(.Values[]?; . == $path))) | {Priority, RuleArn}'
 
           echo "--- Target Group Health ---"
           TG_ARN=$(aws elbv2 describe-target-groups --names "${SERVICE_NAME}-tg" --region "$REGION" --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
