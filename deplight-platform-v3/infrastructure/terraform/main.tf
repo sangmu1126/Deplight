@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.10.0"
 
   required_providers {
     aws = {
@@ -8,44 +8,13 @@ terraform {
     }
   }
 
-  # Backend Configuration
-  # Choose one of the following:
-
-  # Option 1: Local backend (default - uncommented)
-  # State file will be stored locally in terraform.tfstate
-  # Good for: Quick start, single developer, testing
-  backend "local" {
-    path = "terraform.tfstate"
+  backend "s3" {
+    bucket       = "delightful-deploy-artifacts-265233844540"
+    key          = "terraform/v3/terraform.tfstate"
+    region       = "ap-northeast-2"
+    encrypt      = true
+    use_lockfile = true
   }
-
-  # Option 2: Terraform Cloud (comment out local backend above and uncomment this)
-  # State file managed remotely by Terraform Cloud
-  # Good for: Team collaboration, state locking, remote operations
-  # Prerequisites:
-  #   1. Create account at https://app.terraform.io
-  #   2. Create organization: delightful-deploy
-  #   3. Create workspace: delightful-deploy-dev
-  #   4. Set TF_API_TOKEN in GitHub Secrets
-  #
-  # cloud {
-  #   organization = "delightful-deploy"
-  #
-  #   workspaces {
-  #     name = "delightful-deploy-dev"
-  #   }
-  # }
-
-  # Option 3: S3 backend (uncomment this and comment out local backend)
-  # State file stored in S3 with DynamoDB locking
-  # Good for: Team collaboration without Terraform Cloud
-  #
-  # backend "s3" {
-  #   bucket         = "deplight-platform-tf-state"
-  #   key            = "terraform.tfstate"
-  #   region         = "ap-northeast-2"
-  #   encrypt        = true
-  #   dynamodb_table = "deplight-platform-tf-locks"
-  # }
 }
 
 provider "aws" {
@@ -176,6 +145,10 @@ resource "aws_cloudwatch_log_group" "app" {
 resource "aws_s3_bucket" "artifacts" {
   count  = var.use_existing_artifacts_bucket ? 0 : 1
   bucket = "${var.app_name}-artifacts-${data.aws_caller_identity.current.account_id}"
+
+  lifecycle {
+    prevent_destroy = true
+  }
 
   tags = {
     Name = "${var.app_name}-artifacts"

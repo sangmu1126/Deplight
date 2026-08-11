@@ -230,7 +230,7 @@ variable "route_table_ids" {
 variable "use_existing_roles" {
   description = "Use pre-existing IAM roles instead of creating new ones"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "ecs_execution_role_arn" {
@@ -278,13 +278,13 @@ variable "log_group_name_lambda" {
 variable "use_existing_artifacts_bucket" {
   description = "Use pre-existing S3 artifacts bucket"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "artifacts_bucket_name" {
   description = "Artifacts bucket name (used if use_existing_artifacts_bucket=true)"
   type        = string
-  default     = "deplight-platform-artifacts-apne2"
+  default     = "delightful-deploy-artifacts-265233844540"
 }
 
 variable "cpu_target_value" {
