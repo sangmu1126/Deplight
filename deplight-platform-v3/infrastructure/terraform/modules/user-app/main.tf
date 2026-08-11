@@ -65,7 +65,7 @@ resource "aws_lb_target_group" "user_app" {
     interval            = 30
     path                = var.health_check_path
     protocol            = "HTTP"
-    matcher             = "200-399"
+    matcher             = "200-499"
   }
 
   deregistration_delay = 30
