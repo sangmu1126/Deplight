@@ -3,7 +3,7 @@
 Delightful Deploy Dashboard API
 FastAPI backend for the service dashboard
 """
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -14,8 +14,12 @@ import os
 import threading
 import json
 import requests
+import hmac
+import re
 from pathlib import Path
+from urllib.parse import urlparse
 from dotenv import load_dotenv
+from boto3.dynamodb.conditions import Key
 
 # .env 파일에서 환경변수 로드
 load_dotenv()
@@ -30,7 +34,7 @@ app = FastAPI(
 # CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[origin.strip() for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -53,8 +57,54 @@ ALB_DNS = os.getenv('ALB_DNS', 'delightful-deploy-alb-1219635926.ap-northeast-2.
 
 # GitHub Configuration for triggering workflows
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')  # Personal Access Token
+DASHBOARD_API_KEY = os.getenv('DASHBOARD_API_KEY')
 GITHUB_API_URL = "https://api.github.com"
-MANGO_REPO = os.getenv('MANGO_REPO', 'Softbank-mango/deplight-platform-v3')
+MANGO_REPO = os.getenv('MANGO_REPO', 'sangmu1126/Deplight')
+
+
+def _require_deployment_auth(x_api_key: Optional[str]) -> None:
+    if not DASHBOARD_API_KEY:
+        raise HTTPException(status_code=503, detail="Dashboard deployments are disabled")
+    if not x_api_key or not hmac.compare_digest(x_api_key, DASHBOARD_API_KEY):
+        raise HTTPException(status_code=401, detail="Invalid dashboard API key")
+
+
+def _normalize_repository(repository: str) -> str:
+    value = repository.strip()
+    if value.startswith(("http://", "https://")):
+        parsed = urlparse(value)
+        if parsed.scheme != "https" or parsed.hostname not in {"github.com", "www.github.com"}:
+            raise HTTPException(status_code=400, detail="Only HTTPS GitHub repository URLs are supported")
+        value = parsed.path.strip("/")
+    if value.endswith(".git"):
+        value = value[:-4]
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value):
+        raise HTTPException(status_code=400, detail="Repository must use the owner/repository format")
+    return value
+
+
+def _scan_all(table) -> list[dict]:
+    items = []
+    kwargs = {}
+    while True:
+        response = table.scan(**kwargs)
+        items.extend(response.get('Items', []))
+        last_key = response.get('LastEvaluatedKey')
+        if not last_key:
+            return items
+        kwargs['ExclusiveStartKey'] = last_key
+
+
+def _decode_project_info(value) -> dict:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            decoded = json.loads(value)
+            return decoded if isinstance(decoded, dict) else {}
+        except json.JSONDecodeError:
+            return {}
+    return {}
 
 
 @app.get("/")
@@ -99,14 +149,12 @@ async def get_services():
     """배포된 서비스 목록 조회"""
     try:
         # 배포 히스토리 테이블에서 모든 배포 조회
-        response = deployment_table.scan()
-        items = response.get('Items', [])
+        items = _scan_all(deployment_table)
 
         # AI 분석 테이블에서 프로젝트 정보 가져오기
         ai_analyses = {}
         try:
-            ai_response = ai_analysis_table.scan()
-            for item in ai_response.get('Items', []):
+            for item in _scan_all(ai_analysis_table):
                 analysis_id = item.get('analysis_id')
                 if analysis_id:
                     ai_analyses[analysis_id] = item
@@ -122,28 +170,14 @@ async def get_services():
             # AI 분석 결과에서 프로젝트 정보 가져오기
             if analysis_id and analysis_id in ai_analyses:
                 ai_item = ai_analyses[analysis_id]
-                project_info_raw = ai_item.get('project_info', {})
-
-                # project_info가 JSON 문자열인 경우 파싱
-                if isinstance(project_info_raw, str):
-                    try:
-                        import json
-                        project_info = json.loads(project_info_raw)
-                    except Exception as parse_err:
-                        print(f"Warning: Could not parse project_info JSON: {parse_err}")
-                        project_info = {}
-                elif isinstance(project_info_raw, dict):
-                    project_info = project_info_raw
-                else:
-                    # 다른 타입인 경우 빈 dict로 초기화
-                    project_info = {}
+                project_info = _decode_project_info(ai_item.get('project_info', {}))
 
             # 기본 정보 구성
             repository = item.get('repository', 'unknown')
             service_name = repository.split('/')[-1] if '/' in repository else repository
 
             # URL 설정: FastAPI의 경우 Swagger UI로 이동
-            base_url = f"http://{ALB_DNS}"
+            base_url = item.get('deployment_url') or f"http://{ALB_DNS}"
             framework = project_info.get('framework', 'N/A')
 
             if 'FastAPI' in framework or 'fastapi' in framework.lower():
@@ -180,29 +214,7 @@ async def get_services():
 
     except Exception as e:
         print(f"Error fetching services: {e}")
-        # 에러 발생 시 테스트 데이터 반환
-        return {
-            "success": False,
-            "error": str(e),
-            "count": 1,
-            "services": [
-                {
-                    "id": "test-1",
-                    "name": "test-fastapi-app",
-                    "description": "FastAPI Test Application",
-                    "framework": "FastAPI",
-                    "language": "Python",
-                    "runtime": "Python 3.11",
-                    "port": 8000,
-                    "status": "healthy",
-                    "deployedAt": datetime.now().isoformat(),
-                    "commitSha": "bcd6c2f4",
-                    "branch": "main",
-                    "url": f"http://{ALB_DNS}",
-                    "repository": "test/scenario1"
-                }
-            ]
-        }
+        raise HTTPException(status_code=503, detail="Could not load deployment services")
 
 
 @app.get("/api/services/{service_id}")
@@ -224,13 +236,15 @@ async def get_service_detail(service_id: str):
         project_info = {}
         if analysis_id:
             try:
-                ai_response = ai_analysis_table.get_item(
-                    Key={'analysis_id': analysis_id}
+                ai_response = ai_analysis_table.query(
+                    KeyConditionExpression=Key('analysis_id').eq(analysis_id),
+                    ScanIndexForward=False,
+                    Limit=1,
                 )
-                if 'Item' in ai_response:
-                    project_info = ai_response['Item'].get('project_info', {})
-            except:
-                pass
+                if ai_response.get('Items'):
+                    project_info = _decode_project_info(ai_response['Items'][0].get('project_info', {}))
+            except Exception as error:
+                print(f"Warning: Could not fetch analysis detail: {error}")
 
         return {
             "success": True,
@@ -263,7 +277,12 @@ async def get_service_metrics(service_id: str):
         start_time = end_time - timedelta(minutes=15)
         
         cluster_name = 'delightful-deploy-cluster'
-        service_name = f'user-app-{service_id}'
+        deployment_response = deployment_table.get_item(Key={'id': service_id})
+        deployment_item = deployment_response.get('Item', {})
+        service_name = deployment_item.get('ecs_service_name')
+        if not service_name:
+            run_id = deployment_item.get('github_run_id', service_id)
+            service_name = f'user-app-{run_id}'
         
         dimensions = [
             {'Name': 'ClusterName', 'Value': cluster_name},
@@ -387,8 +406,9 @@ async def get_garden_state():
 
 
 @app.post("/api/services/{service_id}/restart")
-async def restart_service(service_id: str):
+async def restart_service(service_id: str, x_api_key: Optional[str] = Header(default=None)):
     """서비스 재시작 (ECS 태스크 재시작)"""
+    _require_deployment_auth(x_api_key)
     # TODO: ECS 태스크 재시작 로직 구현
     return {
         "success": False,
@@ -397,8 +417,9 @@ async def restart_service(service_id: str):
 
 
 @app.delete("/api/services/{service_id}")
-async def delete_service(service_id: str):
+async def delete_service(service_id: str, x_api_key: Optional[str] = Header(default=None)):
     """서비스 삭제"""
+    _require_deployment_auth(x_api_key)
     # TODO: 서비스 삭제 로직 구현 (ECS, DynamoDB 등)
     return {
         "success": False,
@@ -407,24 +428,21 @@ async def delete_service(service_id: str):
 
 
 @app.post("/api/deploy")
-async def start_deployment(deployment: dict):
+async def start_deployment(deployment: dict, x_api_key: Optional[str] = Header(default=None)):
     """새 배포 시작 - GitHub Actions Workflow Dispatch 트리거"""
     try:
+        _require_deployment_auth(x_api_key)
         repository = deployment.get('repository')
         branch = deployment.get('branch', 'main')
 
         if not repository:
             raise HTTPException(status_code=400, detail="Repository is required")
 
-        # Repository URL에서 owner/repo 추출
-        # 예: https://github.com/sangmu1126/deployment_test_py -> sangmu1126/deployment_test_py
-        if repository.startswith('http'):
-            repo_parts = repository.rstrip('.git').split('/')
-            owner = repo_parts[-2]
-            repo_name = repo_parts[-1]
-            repo_full_name = f"{owner}/{repo_name}"
-        else:
-            repo_full_name = repository
+        if not GITHUB_TOKEN:
+            raise HTTPException(status_code=503, detail="GitHub workflow dispatch is disabled")
+
+        repo_full_name = _normalize_repository(repository)
+        repository = f"https://github.com/{repo_full_name}"
 
         # 배포 ID 생성
         import uuid
@@ -522,27 +540,6 @@ async def start_deployment(deployment: dict):
                 )
 
                 raise HTTPException(status_code=500, detail=error_msg)
-        else:
-            # GitHub Token이 없는 경우 - 수동 배포 안내
-            print("⚠️ GITHUB_TOKEN not set. Please push to GitHub to trigger deployment.")
-
-            deployment_logs_table.put_item(Item={
-                'deployment_id': deployment_id,
-                'timestamp': datetime.now().isoformat(),
-                'message': 'Manual deployment not available. Please push code to GitHub to trigger CI/CD pipeline.',
-                'log_type': 'warning',
-                'step': 0
-            })
-
-            return {
-                "success": True,
-                "deployment_id": deployment_id,
-                "repository": repository,
-                "branch": branch,
-                "status": "pending",
-                "message": "GITHUB_TOKEN not configured. Please push code to GitHub to trigger automatic deployment via CI/CD pipeline."
-            }
-
     except HTTPException:
         raise
     except Exception as e:
@@ -617,70 +614,39 @@ async def get_deployment_status(deployment_id: str):
 
 
 @app.post("/api/deploy/complete")
-async def complete_deployment(deployment_data: dict):
-    """배포 완료 후 DynamoDB에 저장"""
+async def complete_deployment(deployment_data: dict, x_api_key: Optional[str] = Header(default=None)):
+    """기존 배포 레코드를 완료 상태로 갱신"""
     try:
-        import uuid
-        import json
+        _require_deployment_auth(x_api_key)
+        deployment_id = deployment_data.get('deployment_id')
+        if not deployment_id:
+            raise HTTPException(status_code=400, detail="deployment_id is required")
 
-        repository = deployment_data.get('repository')
-        branch = deployment_data.get('branch', 'main')
-        framework = deployment_data.get('framework', 'Unknown')
+        existing = deployment_table.get_item(Key={'id': deployment_id})
+        if 'Item' not in existing:
+            raise HTTPException(status_code=404, detail="Deployment not found")
 
-        if not repository:
-            raise HTTPException(status_code=400, detail="Repository is required")
-
-        # ID 생성
-        service_id = str(uuid.uuid4())
-        analysis_id = str(uuid.uuid4())[:16]
         timestamp = datetime.now().isoformat()
-
-        # Repository에서 이름 추출 (owner/repo 형태)
-        repo_name = repository.split('/')[-1].replace('.git', '')
-
-        # AI 분석 결과 저장
-        ai_analysis = {
-            'analysis_id': analysis_id,
-            'timestamp': timestamp,
-            'repository': repository,
-            'commit_sha': 'latest',
-            'created_at': timestamp,
-            'project_info': json.dumps({
-                'framework': framework,
-                'language': 'Python' if framework == 'FastAPI' else 'JavaScript',
-                'runtime': 'Python 3.11' if framework == 'FastAPI' else 'Node.js 18',
-                'port': 8000 if framework == 'FastAPI' else 3000,
-                'description': f'{framework} Application'
-            }),
-            'confidence': '0.95',
-            'recommendation': 'deploy'
-        }
-
-        # 배포 기록 저장
-        deployment_record = {
-            'id': service_id,
-            'deployment_id': service_id,
-            'repository': repository,
-            'commit_sha': 'latest',
-            'branch': branch,
-            'status': 'success',
-            'timestamp': timestamp,
-            'analysis_id': analysis_id,
-            'pusher': 'user',
-            'deployment_url': f'http://{ALB_DNS}'
-        }
-
-        # DynamoDB에 저장
-        ai_analysis_table.put_item(Item=ai_analysis)
-        deployment_table.put_item(Item=deployment_record)
+        deployment_url = deployment_data.get('deployment_url', '')
+        deployment_table.update_item(
+            Key={'id': deployment_id},
+            UpdateExpression='SET #status = :status, completed_at = :completed, deployment_url = :url',
+            ExpressionAttributeNames={'#status': 'status'},
+            ExpressionAttributeValues={
+                ':status': 'success',
+                ':completed': timestamp,
+                ':url': deployment_url,
+            },
+        )
 
         return {
             "success": True,
-            "service_id": service_id,
-            "analysis_id": analysis_id,
+            "service_id": deployment_id,
             "message": "Deployment saved successfully"
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Error saving deployment: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -697,6 +663,10 @@ def _get_service_status(status: str) -> str:
         'error': 'error'
     }
     return status_map.get(status.lower(), 'unknown')
+
+
+# API routes are registered first; all remaining paths serve the React build.
+app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True, check_dir=False), name="frontend")
 
 
 if __name__ == '__main__':

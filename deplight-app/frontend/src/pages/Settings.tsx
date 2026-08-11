@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Key, Globe, Cloud, ShieldAlert, Plus, Trash2 } from 'lucide-react';
+import { Key, Globe, Cloud, ShieldAlert, Plus, Trash2, Save } from 'lucide-react';
+import { getDashboardApiKey, setDashboardApiKey } from '../api';
 
 interface Secret {
   id: string;
@@ -18,6 +19,14 @@ const Settings = ({ onBack }: SettingsProps) => {
   ]);
 
   const [isGithubConnected, setIsGithubConnected] = useState(true);
+  const [dashboardApiKey, setDashboardApiKeyValue] = useState(getDashboardApiKey);
+  const [apiKeySaved, setApiKeySaved] = useState(false);
+
+  const saveDashboardApiKey = () => {
+    setDashboardApiKey(dashboardApiKey);
+    setApiKeySaved(true);
+    window.setTimeout(() => setApiKeySaved(false), 2000);
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -39,6 +48,28 @@ const Settings = ({ onBack }: SettingsProps) => {
       <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '32px' }}>
         {/* Left Column: Secrets */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div className="glass-panel" style={{ padding: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+              <Key style={{ color: 'var(--warning)' }} />
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>배포 API 키</h2>
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '16px' }}>
+              조회에는 필요하지 않으며 배포·재배포 요청에만 사용됩니다. 현재 브라우저 세션에만 저장됩니다.
+            </p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <input
+                type="password"
+                value={dashboardApiKey}
+                onChange={(event) => setDashboardApiKeyValue(event.target.value)}
+                placeholder="Dashboard API key"
+                autoComplete="off"
+                style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}
+              />
+              <button className="btn btn-primary" onClick={saveDashboardApiKey}>
+                <Save size={16} /> {apiKeySaved ? '저장됨' : '세션에 저장'}
+              </button>
+            </div>
+          </div>
           <div className="glass-panel" style={{ padding: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
