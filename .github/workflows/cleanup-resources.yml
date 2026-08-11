@@ -1,136 +1,75 @@
-name: Cleanup Conflicting Resources
+name: Cleanup Legacy Resources
 
 on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Type "DELETE" to confirm resource deletion'
+        description: 'Type "DELETE LEGACY" to confirm deletion of legacy deplight-platform tables'
         required: true
-        default: ''
+        default: ""
 
 permissions:
   id-token: write
   contents: read
 
+env:
+  AWS_REGION: ap-northeast-2
+
 jobs:
   cleanup:
-    name: Delete Conflicting AWS Resources
+    name: Delete legacy DynamoDB tables
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Verify confirmation
         run: |
-          if [ "${{ github.event.inputs.confirm }}" != "DELETE" ]; then
-            echo "❌ Confirmation failed. You must type 'DELETE' to proceed."
+          if [ "${{ inputs.confirm }}" != "DELETE LEGACY" ]; then
+            echo 'Confirmation failed. Type "DELETE LEGACY" to proceed.'
             exit 1
           fi
-          echo "✅ Confirmation verified"
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::513348493870:role/GitHubActionsRole
-          role-session-name: cleanup-resources-session
-          aws-region: ap-northeast-2
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: cleanup-legacy-resources
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Verify AWS credentials
+      - name: Verify target account
         run: |
-          echo "Verifying AWS credentials..."
-          aws sts get-caller-identity
-
-      - name: Delete X-Ray Sampling Rule
-        run: |
-          echo "🔍 Checking X-Ray Sampling Rule..."
-          RULE_NAME="delightful-deploy-sampling-rule"
-
-          if aws xray get-sampling-rules --region ap-northeast-2 2>/dev/null | grep -q "$RULE_NAME"; then
-            echo "🗑️  Deleting X-Ray sampling rule: $RULE_NAME"
-            aws xray delete-sampling-rule \
-              --rule-name "$RULE_NAME" \
-              --region ap-northeast-2 || echo "⚠️  Failed (may already be deleted)"
-            echo "✅ X-Ray sampling rule deleted"
-          else
-            echo "ℹ️  X-Ray sampling rule not found"
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          if [ "$ACCOUNT_ID" != "265233844540" ]; then
+            echo "Refusing cleanup in unexpected AWS account: $ACCOUNT_ID"
+            exit 1
           fi
 
-      - name: Delete DynamoDB Tables
+      - name: Delete legacy DynamoDB tables
         run: |
-          echo "🔍 Checking DynamoDB Tables..."
+          set -euo pipefail
 
           TABLES=(
-            "delightful-deploy-garden-state"
             "deplight-platform-ai-analysis"
             "deplight-platform-deployment-history"
             "deplight-platform-deployment-logs"
           )
 
-          for TABLE in "${TABLES[@]}"; do
-            if aws dynamodb describe-table --table-name "$TABLE" --region ap-northeast-2 &>/dev/null; then
-              echo "🗑️  Deleting DynamoDB table: $TABLE"
+          for table in "${TABLES[@]}"; do
+            if aws dynamodb describe-table \
+              --table-name "$table" \
+              --region "$AWS_REGION" \
+              >/dev/null 2>&1; then
               aws dynamodb delete-table \
-                --table-name "$TABLE" \
-                --region ap-northeast-2
-              echo "✅ Table $TABLE deletion initiated"
+                --table-name "$table" \
+                --region "$AWS_REGION" \
+                >/dev/null
+              echo "Deletion started: $table"
             else
-              echo "ℹ️  Table $TABLE not found"
-            fi
-          done
-
-          echo ""
-          echo "⏳ Waiting for tables to be deleted..."
-          for TABLE in "${TABLES[@]}"; do
-            if aws dynamodb describe-table --table-name "$TABLE" --region ap-northeast-2 &>/dev/null; then
-              echo "  Waiting for $TABLE..."
-              aws dynamodb wait table-not-exists \
-                --table-name "$TABLE" \
-                --region ap-northeast-2 2>/dev/null || echo "  (already deleted)"
-            fi
-          done
-          echo "✅ All DynamoDB tables deleted"
-
-      - name: Delete CloudWatch Log Groups
-        run: |
-          echo "🔍 Checking CloudWatch Log Groups..."
-
-          LOG_GROUPS=(
-            "/aws/ecs/delightful-deploy-dashboard"
-            "/aws/ecs/delightful-deploy"
-          )
-
-          for LOG_GROUP in "${LOG_GROUPS[@]}"; do
-            if aws logs describe-log-groups \
-              --log-group-name-prefix "$LOG_GROUP" \
-              --region ap-northeast-2 2>/dev/null | grep -q "\"$LOG_GROUP\""; then
-              echo "🗑️  Deleting log group: $LOG_GROUP"
-              aws logs delete-log-group \
-                --log-group-name "$LOG_GROUP" \
-                --region ap-northeast-2 || echo "⚠️  Failed (may already be deleted)"
-              echo "✅ Log group deleted"
-            else
-              echo "ℹ️  Log group $LOG_GROUP not found"
+              echo "Not found: $table"
             fi
           done
 
       - name: Summary
         run: |
-          echo ""
-          echo "=================================================="
-          echo "  🎉 Cleanup completed successfully!"
-          echo "=================================================="
-          echo ""
-          echo "Deleted resources:"
-          echo "  • X-Ray sampling rule: delightful-deploy-sampling-rule"
-          echo "  • DynamoDB tables (4):"
-          echo "    - delightful-deploy-garden-state"
-          echo "    - deplight-platform-ai-analysis"
-          echo "    - deplight-platform-deployment-history"
-          echo "    - deplight-platform-deployment-logs"
-          echo "  • CloudWatch log groups (2):"
-          echo "    - /aws/ecs/delightful-deploy"
-          echo "    - /aws/ecs/delightful-deploy-dashboard"
-          echo ""
-          echo "Next step: Run 'Infra Apply (Terraform)' workflow"
-          echo "  https://github.com/Softbank-mango/deplight-platform-v3/actions"
+          echo "## Legacy cleanup requested" >> "$GITHUB_STEP_SUMMARY"
+          echo "Only DynamoDB tables prefixed with \`deplight-platform-\` were targeted." >> "$GITHUB_STEP_SUMMARY"
+          echo "Current \`delightful-deploy-*\` resources were excluded." >> "$GITHUB_STEP_SUMMARY"
