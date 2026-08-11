@@ -32,6 +32,11 @@ tfplan
 # Generated analyzer outputs (retain structure via .gitkeep)
 generated/analyzer-artifacts/*
 !generated/analyzer-artifacts/.gitkeep
+build/*.zip
+infrastructure/build/*.zip
+lambda/ai_code_analyzer/package/
+lambda/ai_code_analyzer/deploy_pkg/
+lambda/ai_code_analyzer/*.zip
 
 # Ops artifacts
 ops/scripts/**/*.log
