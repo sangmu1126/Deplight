@@ -676,6 +676,7 @@ jobs:
       alb-dns: ${{ steps.alb.outputs.dns }}
       url: ${{ steps.alb.outputs.url }}
       deployment-id: ${{ steps.deployment-info.outputs.deployment-id }}
+      service-name: ${{ steps.deploy-user-app.outputs.service-name }}
 
     steps:
       - name: Configure AWS credentials (OIDC)
@@ -892,49 +893,81 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install curl
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y curl
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::265233844540:role/github-actions-deplight-role
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Wait for service warmup
-        run: /usr/bin/sleep 30
-
-      - name: Health check (path-aware)
+      - name: Wait for healthy ALB targets
         run: |
           set -euo pipefail
-          BASE_URL="${{ needs.deploy-ecs.outputs.url || format('http://{0}', needs.deploy-ecs.outputs.alb-dns) }}"
-          echo "Using base URL: ${BASE_URL}"
-          MAX_RETRIES=10
-          RETRY_COUNT=0
-          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            echo "Health check attempt $((RETRY_COUNT + 1))/$MAX_RETRIES..."
-            for HEALTH_PATH in "/api/health" "/health" "/"; do
-              CODE=$(/usr/bin/curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}${HEALTH_PATH}" --max-time 10 || true)
-              CODE=${CODE:-000}
-              if [ "$CODE" -ge 200 ] && [ "$CODE" -lt 400 ]; then
-                echo "✓ Health check passed at ${BASE_URL}${HEALTH_PATH} (HTTP $CODE)"
-                exit 0
-              else
-                echo "HTTP $CODE at ${BASE_URL}${HEALTH_PATH}"
-              fi
-            done
-            RETRY_COUNT=$((RETRY_COUNT + 1))
+          REGION="${{ env.AWS_REGION }}"
+          SERVICE_NAME="${{ needs.deploy-ecs.outputs.service-name }}"
+
+          if [ -n "${{ github.event.inputs.target_repository }}" ]; then
+            if [ -z "$SERVICE_NAME" ]; then
+              echo "User app service name was not exported by deploy-ecs."
+              exit 1
+            fi
+            TG_NAME="${SERVICE_NAME}-tg"
+          else
+            TG_NAME="delightful-deploy-dashboard-tg"
+          fi
+
+          TG_ARN=$(aws elbv2 describe-target-groups \
+            --names "$TG_NAME" \
+            --region "$REGION" \
+            --query 'TargetGroups[0].TargetGroupArn' \
+            --output text 2>/dev/null || true)
+
+          if [ -z "$TG_ARN" ] || [ "$TG_ARN" = "None" ]; then
+            echo "Target group not found: $TG_NAME"
+            exit 1
+          fi
+
+          echo "Waiting for all targets in $TG_NAME to become healthy..."
+          MAX_RETRIES=18
+          for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
+            HEALTH=$(aws elbv2 describe-target-health \
+              --target-group-arn "$TG_ARN" \
+              --region "$REGION" \
+              --query 'TargetHealthDescriptions' \
+              --output json)
+            TARGET_COUNT=$(jq 'length' <<<"$HEALTH")
+            HEALTHY_COUNT=$(jq '[.[] | select(.TargetHealth.State == "healthy")] | length' <<<"$HEALTH")
+            STATES=$(jq -r '[.[] | .TargetHealth.State] | if length == 0 then "none" else join(",") end' <<<"$HEALTH")
+
+            echo "Attempt ${ATTEMPT}/${MAX_RETRIES}: ${HEALTHY_COUNT}/${TARGET_COUNT} healthy (${STATES})"
+            if [ "$TARGET_COUNT" -gt 0 ] && [ "$HEALTHY_COUNT" -eq "$TARGET_COUNT" ]; then
+              echo "Target Group health check passed."
+              exit 0
+            fi
+
             /usr/bin/sleep 10
           done
-          echo "✗ Health check failed for ${BASE_URL} after $MAX_RETRIES attempts"
+
+          echo "Target Group did not become healthy within 3 minutes."
+          aws elbv2 describe-target-health \
+            --target-group-arn "$TG_ARN" \
+            --region "$REGION" \
+            --query 'TargetHealthDescriptions[].{Target:Target,State:TargetHealth.State,Reason:TargetHealth.Reason,Description:TargetHealth.Description}' \
+            --output table || true
           exit 1
 
-      - name: API endpoint test
+      - name: Public ALB diagnostic (non-blocking)
+        if: always()
         run: |
-          echo "Testing deployment base URL..."
+          set -u
           BASE_URL="${{ needs.deploy-ecs.outputs.url || format('http://{0}', needs.deploy-ecs.outputs.alb-dns) }}"
-          # Ensure trailing slash to match ALB path rule "/app/<id>/*"
           BASE_URL_SLASH="${BASE_URL%/}/"
-          /usr/bin/curl -fsS "${BASE_URL_SLASH}" --max-time 10 >/dev/null || echo "base URL not available (may be expected if app has no root)"
-
-          echo "Testing /api/health..."
-          /usr/bin/curl -fsS "${BASE_URL%/}/api/health" --max-time 10 >/dev/null || echo "/api/health not available"
+          CODE=$(/usr/bin/curl --silent --output /dev/null --write-out '%{http_code}' \
+            --max-time 5 "$BASE_URL_SLASH" || true)
+          CODE=${CODE:-000}
+          echo "Public endpoint diagnostic: ${BASE_URL_SLASH} -> HTTP ${CODE}"
+          if [ "$CODE" = "000" ]; then
+            echo "GitHub-hosted runner could not reach the public ALB; Target Group health remains the deployment criterion."
+          fi
 
   store-artifacts:
     name: Store Deployment Artifacts
